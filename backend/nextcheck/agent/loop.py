@@ -102,7 +102,7 @@ class AcquisitionEngine:
                 "sampler": None,
             }
             candidates.append(candidate)
-            if affordable:
+            if affordable and policy not in {"random", "initial"}:
                 candidate_seed = int.from_bytes(
                     sha256(f"{seed}:{state_hash}:{panel.id}".encode()).digest()[:8], "big"
                 )

@@ -109,3 +109,17 @@ def test_constant_fixture_stops_on_zero_information():
     result = engine.analyze(state, 3, lambda_cost=0)
     assert result["selected_action"] is None
     assert result["stop_reason"] == "no_predicted_net_value"
+
+
+@pytest.mark.parametrize("policy", ["random", "initial"])
+def test_simple_policies_do_not_query_hypothetical_rows(policy):
+    predictor = FixturePredictor()
+    engine = AcquisitionEngine(predictor, CONTEXT, PANELS)
+    state = ObservedCase(("initial",), {"sensor0_mean": 0.0})
+    result = engine.analyze(state, 3, policy=policy, seed=19)
+    assert [len(query) for query in predictor.calls] == [1]
+    assert result["prediction_calls"] == 1
+    assert result["hypothetical_query_rows"] == 0
+    assert all(candidate["information"] is None and candidate["sampler"] is None for candidate in result["candidates"])
+    assert result["selected_action"] in {"a", "b"} if policy == "random" else result["selected_action"] is None
+    assert engine.analyze(state, 3, policy=policy, seed=19)["selected_action"] == result["selected_action"]
