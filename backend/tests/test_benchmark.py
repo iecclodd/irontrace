@@ -110,3 +110,5 @@ def test_random_uses_no_hypothetical_queries():
     assert outcome["prediction_calls"] == 1
     assert outcome["prediction_query_rows"] == 1
     assert outcome["hypothetical_query_rows"] == 0
+    assert outcome["physical_prediction_calls"] == 1
+    assert outcome["cache_reused"] is False

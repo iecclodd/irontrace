@@ -351,7 +351,12 @@ def evaluate_frozen(
                     subset = tuple(configuration.get("groups", ()))
                     fixed_key = (policy, subset)
                     if policy in ("prior", "initial", "static", "all") and fixed_key in fixed_test_cache:
-                        cases = [{**case, "budget": budget, "lambda_cost": lambda_cost}
+                        cases = [{**case, "budget": budget, "lambda_cost": lambda_cost,
+                                  "cache_reused": True, "wall_time_basis": "measured_compute_reference",
+                                  "execution_wall_time_s": 0.0,
+                                  "physical_prediction_calls": 0,
+                                  "physical_prediction_query_rows": 0,
+                                  "physical_hypothetical_query_rows": 0}
                                  for case in fixed_test_cache[fixed_key]]
                         metrics = summarize(cases)
                     else:

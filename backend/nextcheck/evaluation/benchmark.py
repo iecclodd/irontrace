@@ -132,7 +132,9 @@ class DiagnosticCache:
     def get(self, index: int, groups: tuple[str, ...]) -> dict[str, Any]:
         groups = tuple(group for group in GROUPS if group in groups)
         key = (int(index), groups)
-        if key not in self.values:
+        if key in self.values:
+            return {**self.values[key], "cache_reused": True}
+        else:
             case = observed_case(self.x[index], groups, self.columns, self.names)
             counter = self.engine.predictor
             before = counter.counts()
@@ -144,7 +146,7 @@ class DiagnosticCache:
                 "counts": tuple(a - b for a, b in zip(after, before)),
                 "elapsed_s": time.perf_counter() - start,
             }
-        return self.values[key]
+        return {**self.values[key], "cache_reused": False}
 
 
 def partial_states(row_index: int, seed: int = SEED) -> tuple[tuple[str, ...], ...]:
@@ -255,6 +257,9 @@ def run_actions(
     groups: tuple[str, ...] = ()
     elapsed = 0.0
     calls = query_rows = hypothetical_rows = 0
+    execution_elapsed = 0.0
+    physical_calls = physical_query_rows = physical_hypothetical_rows = 0
+    cache_reused = False
     rng = np.random.default_rng(random_seed + index)
     trace: list[dict[str, Any]] = []
     stop_reason: str
@@ -265,6 +270,8 @@ def run_actions(
         groups = static_subset if policy == "static" else (GROUPS if policy == "all" else ())
         probabilities, elapsed = _single_prediction(predictor, mask_row(row, groups, columns))
         calls = query_rows = 1
+        physical_calls = physical_query_rows = 1
+        execution_elapsed = elapsed
         stop_reason = {"initial": "no_measurement", "static": "fixed_subset_complete", "all": "all_panels_reference"}[policy]
     elif policy == "random":
         # Random needs only the public costs and mask. It must not run the
@@ -279,6 +286,8 @@ def run_actions(
             trace.append({"group_id": action, "cost": costs[action], "remaining_budget_after": budget - sum(costs[group] for group in groups)})
         probabilities, elapsed = _single_prediction(predictor, mask_row(row, groups, columns))
         calls = query_rows = 1
+        physical_calls = physical_query_rows = 1
+        execution_elapsed = elapsed
         stop_reason = "no_groups_remaining" if len(groups) == len(GROUPS) else "budget_exhausted"
     else:
         probabilities = []
@@ -292,6 +301,9 @@ def run_actions(
                 elapsed += seconds
                 calls += 1
                 query_rows += 1
+                execution_elapsed += seconds
+                physical_calls += 1
+                physical_query_rows += 1
                 break
             cached = cache.get(index, groups)
             analysis = cached["analysis"]
@@ -300,6 +312,13 @@ def run_actions(
             calls += cached["counts"][0]
             query_rows += cached["counts"][1]
             hypothetical_rows += cached["counts"][2]
+            if cached["cache_reused"]:
+                cache_reused = True
+            else:
+                execution_elapsed += cached["elapsed_s"]
+                physical_calls += cached["counts"][0]
+                physical_query_rows += cached["counts"][1]
+                physical_hypothetical_rows += cached["counts"][2]
             action = _choose(policy, analysis, groups, remaining, costs, lambda_cost, threshold, models, rng)
             if action is None:
                 break
@@ -318,7 +337,12 @@ def run_actions(
         "stop_reason": stop_reason,
         "prediction_calls": calls, "prediction_query_rows": query_rows,
         "hypothetical_query_rows": hypothetical_rows,
-        "wall_time_s": elapsed, "trace": trace,
+        "physical_prediction_calls": physical_calls,
+        "physical_prediction_query_rows": physical_query_rows,
+        "physical_hypothetical_query_rows": physical_hypothetical_rows,
+        "wall_time_s": elapsed, "execution_wall_time_s": execution_elapsed,
+        "wall_time_basis": "measured_compute_reference" if cache_reused else "measured_this_execution",
+        "cache_reused": cache_reused, "trace": trace,
     }
 
 

@@ -36,9 +36,14 @@ def summarize(cases: list[dict[str, Any]]) -> dict[str, Any]:
         "mean_cost": float(np.mean(costs)),
         "mean_purchases": float(np.mean(purchases)),
         "mean_wall_time_s": float(np.mean(elapsed)),
+        "mean_execution_wall_time_s": float(np.mean([case.get("execution_wall_time_s", case["wall_time_s"]) for case in cases])),
+        "cache_reused_cases": int(sum(bool(case.get("cache_reused", False)) for case in cases)),
         "prediction_calls": int(sum(case["prediction_calls"] for case in cases)),
         "prediction_query_rows": int(sum(case["prediction_query_rows"] for case in cases)),
         "hypothetical_query_rows": int(sum(case["hypothetical_query_rows"] for case in cases)),
+        "physical_prediction_calls": int(sum(case.get("physical_prediction_calls", case["prediction_calls"]) for case in cases)),
+        "physical_prediction_query_rows": int(sum(case.get("physical_prediction_query_rows", case["prediction_query_rows"]) for case in cases)),
+        "physical_hypothetical_query_rows": int(sum(case.get("physical_hypothetical_query_rows", case["hypothetical_query_rows"]) for case in cases)),
     }
 
 
