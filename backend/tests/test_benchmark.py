@@ -58,8 +58,10 @@ class FakeObservedCase:
 class FakeEngine:
     def __init__(self, predictor):
         self.predictor = predictor
+        self.calls = 0
 
     def analyze(self, observed, remaining_budget, policy, seed):
+        self.calls += 1
         assert "PS1__mean" not in observed.values
         # The fixture mimics the real engine boundary: only visible values.
         probabilities = self.predictor.predict_proba([[observed.values["TS1__mean"], np.nan]])[0]
@@ -112,3 +114,27 @@ def test_random_uses_no_hypothetical_queries():
     assert outcome["hypothetical_query_rows"] == 0
     assert outcome["physical_prediction_calls"] == 1
     assert outcome["cache_reused"] is False
+
+
+def test_diagnostic_cache_tracks_visible_state_not_hidden_row(monkeypatch):
+    agent_package = types.ModuleType("nextcheck.agent")
+    agent_package.__path__ = []
+    state_module = types.ModuleType("nextcheck.agent.state")
+    state_module.ObservedCase = FakeObservedCase
+    monkeypatch.setitem(sys.modules, "nextcheck.agent", agent_package)
+    monkeypatch.setitem(sys.modules, "nextcheck.agent.state", state_module)
+    x = np.asarray([[1.0, 10.0]])
+    engine = FakeEngine(CountingPredictor(FakePredictor()))
+    columns = {"initial": [0], "pressure": [1], **{g: [] for g in GROUPS if g != "pressure"}}
+    cache = DiagnosticCache(engine, x, columns, ["TS1__mean", "PS1__mean"])
+    first = cache.get(0, ())
+    x[0, 1] = -500.0  # still hidden
+    repeated = cache.get(0, ())
+    assert engine.calls == 1
+    assert first["analysis"]["probabilities"] == repeated["analysis"]["probabilities"]
+    assert repeated["cache_reused"] is True
+    x[0, 0] = 2.0  # visibly changed
+    changed = cache.get(0, ())
+    assert engine.calls == 2
+    assert changed["cache_reused"] is False
+    assert changed["analysis"]["probabilities"] != first["analysis"]["probabilities"]

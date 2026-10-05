@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import json
 import itertools
 import math
 import time
@@ -127,19 +128,47 @@ class DiagnosticCache:
     x: np.ndarray
     columns: dict[str, list[int]]
     names: list[str]
-    values: dict[tuple[int, tuple[str, ...]], dict[str, Any]] = field(default_factory=dict)
+    values: dict[str, dict[str, Any]] = field(default_factory=dict)
+    identity: str = field(init=False)
+
+    def __post_init__(self) -> None:
+        sampler = getattr(self.engine, "sampler", None)
+        context = getattr(sampler, "context_X", None)
+        context_digest = None
+        if context is not None:
+            matrix = np.ascontiguousarray(context, dtype="<f8")
+            context_digest = hashlib.sha256(matrix.tobytes()).hexdigest()
+        panels = getattr(sampler, "panels", None)
+        panel_spec = (
+            [{"id": panel.id, "features": list(panel.features), "columns": list(panel.columns), "cost": float(panel.cost)} for panel in panels]
+            if panels is not None else {group: [self.names[index] for index in indices] for group, indices in self.columns.items()}
+        )
+        provenance = getattr(self.engine.predictor, "provenance", {}) or {}
+        stable_provenance = {name: provenance.get(name) for name in (
+            "checkpoint_sha256", "context_sha256", "model_version", "fit_mode",
+            "n_estimators_requested", "n_estimators_resolved", "device_resolved",
+        )}
+        identity = {"context_matrix_sha256": context_digest, "model": stable_provenance,
+                    "panels": panel_spec, "sampler": {"draws": 16, "neighborhood_size": 32,
+                    "class": type(sampler).__qualname__ if sampler is not None else None},
+                    "conditioning": "full_context_native_nan"}
+        self.identity = hashlib.sha256(json.dumps(identity, sort_keys=True, allow_nan=False).encode()).hexdigest()
 
     def get(self, index: int, groups: tuple[str, ...]) -> dict[str, Any]:
         groups = tuple(group for group in GROUPS if group in groups)
-        key = (int(index), groups)
+        case = observed_case(self.x[index], groups, self.columns, self.names)
+        seed = state_seed(index, groups)
+        # Hidden values and labels are never included in this cache key.
+        key_payload = {"identity": self.identity, "observed_groups": case.observed_groups,
+                       "visible_values": case.values, "seed": seed}
+        key = hashlib.sha256(json.dumps(key_payload, sort_keys=True, allow_nan=False).encode()).hexdigest()
         if key in self.values:
             return {**self.values[key], "cache_reused": True}
         else:
-            case = observed_case(self.x[index], groups, self.columns, self.names)
             counter = self.engine.predictor
             before = counter.counts()
             start = time.perf_counter()
-            analysis = self.engine.analyze(case, remaining_budget=11, policy="information", seed=state_seed(index, groups))
+            analysis = self.engine.analyze(case, remaining_budget=11, policy="information", seed=seed)
             after = counter.counts()
             self.values[key] = {
                 "analysis": analysis,
