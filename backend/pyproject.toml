@@ -1,0 +1,25 @@
+[build-system]
+requires = ["setuptools>=78"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "nextcheck"
+version = "0.1.0"
+description = "Local hydraulic inspection replay with TabPFN 3.5"
+requires-python = ">=3.11,<3.12"
+dependencies = [
+  "fastapi", "pydantic", "numpy", "pandas", "scipy", "scikit-learn",
+  "torch", "tabpfn", "httpx", "uvicorn"
+]
+
+[project.optional-dependencies]
+test = ["pytest"]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["nextcheck*"]
+
+[tool.pytest.ini_options]
+pythonpath = ["backend"]
+testpaths = ["backend/tests"]
+markers = ["integration: requires prepared official UCI data and accessible real TabPFN 3.5 checkpoint"]
