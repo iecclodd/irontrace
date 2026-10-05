@@ -1,4 +1,5 @@
 import { BarChart3, Database, FileCheck2, ShieldAlert } from 'lucide-react'
+import { useState } from 'react'
 import type { BenchmarkResponse } from '../types'
 
 type Point = { cost: number; loss: number; policy: string; source: Record<string, unknown> }
@@ -40,7 +41,9 @@ function valuePointsFor(runs: Record<string, unknown>[]): ValuePoint[] {
     const predicted = numeric(source, 'predicted_delta', 'predicted_value', 'predicted')
     const realized = numeric(source, 'realized_delta', 'realized_value', 'realized', 'actual_delta')
     if (predicted == null || realized == null) return
-    result.push({ predicted, realized, series: group ?? text(source, 'variant', 'model', 'policy') })
+    result.push({ predicted, realized, series: group ?? 'value' })
+    const withoutResidual = numeric(source, 'predicted_without_residual')
+    if (withoutResidual != null) result.push({ predicted: withoutResidual, realized, series: 'value_no_residual' })
   }
   for (const run of runs) {
     const scatter = run.value_scatter
@@ -95,17 +98,23 @@ function ValueScatter({ points }: { points: ValuePoint[] }) {
 }
 
 export function BenchmarkPage({ data, loading, error, onReload }: { data: BenchmarkResponse | null; loading: boolean; error: string | null; onReload: () => void }) {
-  const points = pointsFor(data?.runs ?? [])
+  const [budget, setBudget] = useState('6')
+  const [lambda, setLambda] = useState('0.02')
+  const allPoints = pointsFor(data?.runs ?? [])
+  const points = allPoints.filter(point => (budget === 'all' || numeric(point.source, 'budget') === Number(budget)) && (lambda === 'all' || numeric(point.source, 'lambda_cost') === Number(lambda)))
   const valuePoints = valuePointsFor(data?.runs ?? [])
+  const support = ((points[0]?.source.metrics as Record<string, unknown> | undefined)?.class_support ?? {}) as Record<string, number>
   return <main className="page benchmark-page">
     <section className="page-intro"><div><span className="eyebrow">Recorded evaluation</span><h1>Policy benchmark</h1><p>Actual persisted summaries from the frozen evaluation pipeline. No sample metrics are generated in this console.</p></div><button className="secondary-button" onClick={onReload} disabled={loading}>{loading ? 'Reading artifacts…' : 'Refresh results'}</button></section>
     {error ? <div className="error-banner" role="alert"><ShieldAlert size={18} /><div><strong>Benchmark results unavailable</strong><span>{error}</span></div></div> : null}
     {data && data.blockers.length > 0 ? <div className="blocker-panel"><ShieldAlert size={20} /><div><strong>Evaluation blockers</strong>{data.blockers.map((blocker) => <p key={blocker}>{blocker}</p>)}</div></div> : null}
+    {allPoints.length ? <section className="configuration-bar" aria-label="Benchmark filters"><label>Budget<select value={budget} onChange={event=>setBudget(event.target.value)}><option value="all">All budgets</option>{[...new Set(allPoints.map(point=>numeric(point.source,'budget')))].filter(value=>value!=null).sort((a,b)=>a!-b!).map(value=><option key={value} value={String(value)}>{value}</option>)}</select></label><label>Cost weight<select value={lambda} onChange={event=>setLambda(event.target.value)}><option value="all">All cost weights</option>{[...new Set(allPoints.map(point=>numeric(point.source,'lambda_cost')))].filter(value=>value!=null).sort((a,b)=>a!-b!).map(value=><option key={value} value={String(value)}>{value}</option>)}</select></label><span className="config-note">{String(data?.runs[0]?.scope ?? '')} evaluation. Each policy uses the same held-out rows. Counts and class support are recorded below.</span></section> : null}
     {!loading && data && data.runs.length === 0 ? <section className="empty-state large"><div className="empty-icon"><Database /></div><span className="eyebrow">No result files found</span><h2>Run the frozen benchmark to populate this screen</h2><p>The API did not return persisted run summaries. Prepare data and model access, then run the repository evaluation command documented by the backend. Results must include a status, exact split and model references, and actual metrics before a chart can appear.</p><div className="empty-checks"><span><FileCheck2 size={16} /> artifacts/run_*/summary.json</span><span><FileCheck2 size={16} /> execution_status.json</span></div></section> : null}
     {points.length > 0 ? <>
+      <p className="microcopy">Held-out class support: no leakage {support['0'] ?? '—'}, weak leakage {support['1'] ?? '—'}, severe leakage {support['2'] ?? '—'}. Timings in the table are measured computation references; cached executions are identified in the saved artifacts.</p>
       <section className="surface chart-card"><div className="section-heading"><div><span className="eyebrow">Primary comparison</span><h2>Loss versus acquisition cost</h2></div><span className="data-provenance"><BarChart3 size={15} /> {points.length} persisted points</span></div><BenchmarkChart points={points} /><p className="microcopy">All-panels entries are full-information references and may be infeasible below their recorded cost. Lower log loss is better.</p></section>
       {valuePoints.length > 0 ? <section className="surface chart-card"><div className="section-heading"><div><span className="eyebrow">Empirical value audit</span><h2>Predicted versus realized value</h2></div><span className="data-provenance"><span className="legend-dot" /> Value <span className="legend-dot ablation" /> No-residual ablation</span></div><ValueScatter points={valuePoints} /><p className="microcopy">Points come from persisted out-of-context value examples. The diagonal marks agreement; disagreement does not identify a causal fault.</p></section> : null}
-      <section className="surface result-table-card"><div className="section-heading"><div><span className="eyebrow">Run records</span><h2>Metrics and provenance</h2></div></div><div className="table-scroll"><table><thead><tr><th>Policy</th><th>Run / status</th><th>Budget</th><th>Cost weight</th><th>Feasible</th><th>Log loss</th><th>Mean cost</th><th>Accuracy</th><th>Balanced accuracy</th><th>Brier</th><th>Acquisitions</th><th>Wall time</th><th>Sample count</th><th>Split / model reference</th></tr></thead><tbody>{points.map((point, index) => <tr key={`${point.policy}-${index}`}><td><strong>{point.policy}</strong>{point.policy.toLowerCase().includes('all') ? <small className="table-note">Full-information reference</small> : null}</td><td><strong>{text(point.source, 'scope')}</strong><small className="table-note">{text(point.source, 'status')}</small></td><td>{numeric(point.source, 'budget') ?? '—'}</td><td>{numeric(point.source, 'lambda_cost')?.toFixed(3) ?? '—'}</td><td>{typeof point.source.feasible === 'boolean' ? (point.source.feasible ? 'Yes' : 'No') : '—'}</td><td>{point.loss.toFixed(4)}</td><td>{point.cost.toFixed(2)}</td><td>{numeric(point.source, 'accuracy')?.toFixed(3) ?? '—'}</td><td>{numeric(point.source, 'balanced_accuracy')?.toFixed(3) ?? '—'}</td><td>{numeric(point.source, 'brier_score', 'brier')?.toFixed(3) ?? '—'}</td><td>{numeric(point.source, 'mean_acquisitions', 'acquisition_count', 'purchases')?.toFixed(2) ?? '—'}</td><td>{numeric(point.source, 'wall_time_seconds', 'wall_time', 'wall_time_s')?.toFixed(2) ?? '—'}</td><td>{numeric(point.source, 'sample_count', 'n') ?? objectCount(point.source.evaluated_counts)}</td><td className="ref-cell">{compactRef(point.source.split_counts)}<br />{compactRef(point.source.model_provenance)}</td></tr>)}</tbody></table></div></section>
+      <section className="surface result-table-card"><div className="section-heading"><div><span className="eyebrow">Run records</span><h2>Metrics and provenance</h2></div></div><div className="table-scroll"><table><thead><tr><th>Policy</th><th>Run / status</th><th>Budget</th><th>Cost weight</th><th>Feasible</th><th>Log loss</th><th>Mean cost</th><th>Accuracy</th><th>Balanced accuracy</th><th>Brier</th><th>Acquisitions</th><th>Wall time</th><th>Sample count</th><th>Split / model reference</th></tr></thead><tbody>{points.map((point, index) => <tr key={`${point.policy}-${index}`}><td><strong>{point.policy}</strong>{point.policy.toLowerCase().includes('all') ? <small className="table-note">Full-information reference</small> : null}</td><td><strong>{text(point.source, 'scope')}</strong><small className="table-note">{text(point.source, 'status')}</small></td><td>{numeric(point.source, 'budget') ?? '—'}</td><td>{numeric(point.source, 'lambda_cost')?.toFixed(3) ?? '—'}</td><td>{typeof point.source.feasible === 'boolean' ? (point.source.feasible ? 'Yes' : 'No') : '—'}</td><td>{point.loss.toFixed(4)}</td><td>{point.cost.toFixed(2)}</td><td>{numeric(point.source, 'accuracy')?.toFixed(3) ?? '—'}</td><td>{numeric(point.source, 'balanced_accuracy')?.toFixed(3) ?? '—'}</td><td>{numeric(point.source, 'brier_score', 'brier')?.toFixed(3) ?? '—'}</td><td>{numeric(point.source, 'mean_purchases', 'mean_acquisitions', 'acquisition_count', 'purchases')?.toFixed(2) ?? '—'}</td><td>{numeric(point.source, 'mean_wall_time_s', 'wall_time_seconds', 'wall_time', 'wall_time_s')?.toFixed(2) ?? '—'}</td><td>{numeric(point.source, 'n_cases', 'sample_count', 'n') ?? objectCount(point.source.evaluated_counts)}</td><td className="ref-cell">{compactRef(point.source.split_counts)}<br />{compactRef(point.source.model_provenance)}</td></tr>)}</tbody></table></div></section>
     </> : data && data.runs.length > 0 && !loading ? <section className="empty-state"><BarChart3 /><h2>Run records contain no plottable summaries</h2><p>The API returned run metadata, but no record contained both numeric log loss and mean simulated cost. Inspect the evaluation status and summary schema.</p></section> : null}
   </main>
 }
@@ -114,7 +123,7 @@ function compactRef(value: unknown): string {
   if (typeof value === 'string') return value
   if (value && typeof value === 'object') {
     const record = value as Record<string, unknown>
-    const preferred = ['hash', 'checkpoint', 'checkpoint_hash', 'model_ref']
+    const preferred = ['checkpoint_sha256', 'hash', 'checkpoint', 'checkpoint_hash', 'model_ref']
     const preferredValue = preferred.map((key) => record[key]).find((item) => typeof item === 'string')
     if (typeof preferredValue === 'string') return preferredValue
     return Object.entries(record).slice(0, 3).map(([key, item]) => `${key}:${String(item)}`).join(' · ')
@@ -124,6 +133,6 @@ function compactRef(value: unknown): string {
 
 function objectCount(value: unknown): string | number {
   if (typeof value === 'number') return value
-  if (value && typeof value === 'object') return compactRef(value)
+  if (value && typeof value === 'object' && 'test' in value && typeof value.test === 'number') return value.test
   return '—'
 }

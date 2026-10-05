@@ -10,7 +10,7 @@ export function CandidateTable({ candidates, panels, selectedAction, activeCandi
     {candidates.map((candidate, index) => <button type="button" className={`candidate-row ${activeCandidate === candidate.group_id ? 'active' : ''}`} onClick={() => onSelect(candidate.group_id)} key={candidate.group_id}>
       <span className="candidate-rank">{index + 1}</span>
       <span className="candidate-main"><strong>{names.get(candidate.group_id) ?? candidate.group_id}</strong><small>{candidate.affordable ? `${candidate.cost} simulated units` : 'Over remaining budget'}</small></span>
-      <span className="candidate-metric"><small>Net value</small><strong>{metric(candidate.net_value)}</strong></span>
+      <span className="candidate-metric"><small>{candidate.predicted_delta == null ? 'Heuristic after cost' : 'Net value'}</small><strong>{metric(candidate.net_value)}</strong></span>
       {selectedAction === candidate.group_id ? <span className="recommended-label">Recommended <ArrowUpRight size={12} /></span> : null}
     </button>)}
   </div>

@@ -49,6 +49,11 @@ export default function App() {
 
   useEffect(() => { void loadBootstrap() }, [loadBootstrap])
   useEffect(() => {
+    if (health?.status !== 'loading') return
+    const timer = window.setTimeout(() => void loadBootstrap(), 2000)
+    return () => window.clearTimeout(timer)
+  }, [health?.status, health, loadBootstrap])
+  useEffect(() => {
     abortRef.current = false
     return () => { abortRef.current = true }
   }, [])
@@ -128,7 +133,9 @@ export default function App() {
     setBusy(true)
     try {
       const record = await api.replay(id)
-      setSession(sessionFromReplay(record))
+      const replaySession = sessionFromReplay(record)
+      setSession(replaySession)
+      if (replaySession) setConfig(current => ({budget:replaySession.budget,lambdaCost:replaySession.lambda_cost,policy:replaySession.policy,costs:replaySession.costs ?? current.costs}))
       setEvents(record.trace ?? record.session?.trace ?? [])
       setReport(record.report && typeof record.report === 'object' ? record.report as Record<string, unknown> : null)
     } catch (caught) { setError(errorMessage(caught)); setSession(null); setEvents([]) } finally { setBusy(false) }
@@ -161,6 +168,7 @@ export default function App() {
       </div>
     </header>
 
+    {health?.utility_blockers?.length ? <section className="readiness-banner" role="status"><div><strong>Empirical value policies unavailable</strong>{health.utility_blockers.map((message) => <p key={message}>{message}</p>)}</div></section> : null}
     {health?.status !== 'ready' && view === 'inspection' ? <section className="readiness-banner" role="status"><span className="readiness-icon">{health?.status === 'loading' ? <LoaderCircle className="spin" /> : <DatabaseZap />}</span><div><strong>{health?.status === 'loading' ? 'Backend is preparing resources' : 'Live inference is unavailable'}</strong><p>{blockers[0] ?? 'Start the FastAPI backend on 127.0.0.1:8000, prepare the public dataset, and complete the TabPFN 3.5 model doctor. This console will not substitute another model.'}</p>{blockers.length > 1 ? <details><summary>{blockers.length - 1} more blockers</summary>{blockers.slice(1).map((blocker) => <p key={blocker}>{blocker}</p>)}</details> : null}</div><button className="secondary-button" onClick={() => void loadBootstrap()}><RefreshCw size={15} /> Recheck</button></section> : null}
     {error ? <div className="global-error" role="alert"><AlertTriangle size={18} /><div><strong>Action could not be completed</strong><span>{error}</span></div><button onClick={() => setError(null)} aria-label="Dismiss error">Dismiss</button></div> : null}
 

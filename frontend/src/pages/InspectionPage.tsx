@@ -43,14 +43,14 @@ export function InspectionPage({ health, manifest, session, events, report, repl
       <div className="config-title"><span className="eyebrow">Live scenario</span><strong>{session ? `Session ${session.id.slice(0, 8)}` : 'Configure a new session'}</strong></div>
       <label>Budget<input type="number" min="0" max="100" step="1" value={config.budget} onChange={(event) => setConfig((current) => ({ ...current, budget: Number(event.target.value) }))} disabled={replayMode} /></label>
       <label>Cost weight<input type="number" min="0" step="0.005" value={config.lambdaCost} onChange={(event) => setConfig((current) => ({ ...current, lambdaCost: Number(event.target.value) }))} disabled={replayMode} /></label>
-      <label>Policy<select value={config.policy} onChange={(event) => setConfig((current) => ({ ...current, policy: event.target.value }))} disabled={replayMode}><option value="default">Selected on development data (recommended)</option><option value="information">Information</option><option value="value">Empirical value</option><option value="value_no_residual">Value without residual</option><option value="entropy_drop">Entropy drop</option><option value="raw_kl">Raw KL</option><option value="random">Random</option><option value="static">Static</option><option value="prior">Prior only</option><option value="all">All panels</option></select></label>
+      <label>Policy<select value={config.policy} onChange={(event) => setConfig((current) => ({ ...current, policy: event.target.value }))} disabled={replayMode}><option value="default">Selected on development data (recommended)</option><option value="information">Information</option><option value="value" disabled={!health?.utility_ready}>Empirical value</option><option value="value_no_residual" disabled={!health?.utility_ready}>Value without residual</option><option value="entropy_drop">Entropy drop</option><option value="raw_kl">Raw KL</option><option value="random">Random</option><option value="static">Static</option><option value="prior">Prior only</option><option value="all">All panels</option></select></label>
       <button className="primary-button" onClick={onCreate} disabled={!ready || busy || replayMode}><RotateCcw size={16} /> {session ? 'Start new session' : 'Start live session'}</button>
       {session && !replayMode ? <span className="config-note">Changes apply to a new session and never rewrite past charges.</span> : null}
     </section>
 
     <div className="console-grid">
       <section className="surface panels-column"><div className="section-heading"><div><span className="eyebrow">Available observations</span><h2>Sensor panels</h2></div><span className="count-chip">{session?.observed_groups.length ?? 0}/{manifest?.panels.length ?? 0}</span></div>
-        {manifest ? <SensorPanels panels={manifest.panels} observedGroups={session?.observed_groups ?? []} visibleValues={session?.visible_values ?? {}} costs={config.costs} /> : <div className="skeleton-block">Waiting for the public panel manifest…</div>}
+        {manifest ? <SensorPanels panels={manifest.panels} observedGroups={session?.observed_groups ?? []} visibleValues={session?.visible_values ?? {}} costs={session?.costs ?? config.costs} /> : <div className="skeleton-block">Waiting for the public panel manifest…</div>}
       </section>
 
       <section className="surface prediction-column"><div className="section-heading"><div><span className="eyebrow">Internal pump leakage target</span><h2>Model probabilities</h2></div><Activity className="section-icon" /></div>
@@ -79,7 +79,7 @@ export function InspectionPage({ health, manifest, session, events, report, repl
     </div>
 
     <section className="surface trace-section"><div className="section-heading"><div><span className="eyebrow">Sanitized append-only record</span><h2>Decision trace</h2></div><button className="secondary-button compact" disabled={events.length === 0} onClick={onExport}>Export trace</button></div><TraceTimeline events={events} /></section>
-    <AuditDrawer candidate={auditCandidate} panels={manifest?.panels ?? []} open={auditOpen} onClose={() => setAuditOpen(false)} />
+    <AuditDrawer candidate={auditCandidate} candidates={candidates} panels={manifest?.panels ?? []} open={auditOpen} onClose={() => setAuditOpen(false)} />
     {auditOpen ? <button className="drawer-backdrop" onClick={() => setAuditOpen(false)} aria-label="Close acquisition audit" /> : null}
   </main>
 }

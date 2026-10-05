@@ -5,6 +5,7 @@ export type Health = {
   blockers: string[]
   mode: 'live'
   utility_ready: boolean
+  utility_blockers?: string[]
   selected_default?: Record<string, unknown> | string | null
 }
 
@@ -54,6 +55,7 @@ export type Session = {
   mode: 'live'
   budget: number
   spent: number
+  costs?: Record<string, number>
   remaining_budget: number
   policy: string
   lambda_cost: number

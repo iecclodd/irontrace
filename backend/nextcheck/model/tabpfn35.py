@@ -45,7 +45,7 @@ class TabPFN35Predictor:
         random_state: int = 20261004,
     ) -> None:
         X = np.asarray(context_X, dtype=np.float64)
-        y = np.asarray(context_y)
+        y = np.asarray(context_y, dtype=np.int64)
         if X.ndim != 2 or X.shape[1] != 70 or y.shape != (X.shape[0],):
             raise ValueError("TabPFN context requires X[n,70] and y[n]")
         if X.shape[0] < 3 or not np.isin(y, LABELS).all() or set(np.unique(y)) != set(LABELS):
