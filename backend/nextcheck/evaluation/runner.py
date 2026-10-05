@@ -169,6 +169,7 @@ def select_frozen_policies(
     prior_result = _prediction_metrics(rows=rows, x=x, y=y_dev, policy="prior", subset=(), predictor=predictor, columns=columns, costs=costs, prior=prior)
     choices: dict[str, Any] = {}
     static_candidates: list[dict[str, Any]] = []
+    selection_metrics_cache: dict[tuple[str, float, float, int], dict[str, Any]] = {}
     for budget in budgets:
         for lambda_cost in lambdas:
             key = f"budget={budget:g};lambda={lambda_cost:g}"
@@ -190,10 +191,17 @@ def select_frozen_policies(
                 for threshold in thresholds_to_try:
                     objectives = []
                     for random_seed in seeds_to_try:
-                        _, metrics = evaluate_configuration(rows=rows, x=x, y=y_dev, policy=policy, budget=budget,
-                            lambda_cost=lambda_cost, threshold=threshold, random_seed=random_seed,
-                            predictor=predictor, cache=cache, columns=columns, costs=costs,
-                            models=models, prior=prior)
+                        reusable = policy not in ("value", "value_no_residual")
+                        metric_key = (policy, float(budget), float(threshold), int(random_seed))
+                        if reusable and metric_key in selection_metrics_cache:
+                            metrics = selection_metrics_cache[metric_key]
+                        else:
+                            _, metrics = evaluate_configuration(rows=rows, x=x, y=y_dev, policy=policy, budget=budget,
+                                lambda_cost=lambda_cost, threshold=threshold, random_seed=random_seed,
+                                predictor=predictor, cache=cache, columns=columns, costs=costs,
+                                models=models, prior=prior)
+                            if reusable:
+                                selection_metrics_cache[metric_key] = metrics
                         objectives.append(metrics["log_loss"] + lambda_cost * metrics["mean_cost"])
                     candidates.append((float(np.mean(objectives)), threshold, objectives))
                 objective, threshold, seed_objectives = min(candidates, key=lambda item: (item[0], item[1]))
@@ -338,7 +346,7 @@ def evaluate_frozen(
         cache = DiagnosticCache(engine, x, columns, names)
         outcomes: list[dict[str, Any]] = []
         result_summaries: list[dict[str, Any]] = []
-        fixed_test_cache: dict[tuple[str, tuple[str, ...]], list[dict[str, Any]]] = {}
+        reusable_test_cache: dict[tuple[Any, ...], list[dict[str, Any]]] = {}
         for key, choice in choices["choices"].items():
             budget = float(choice["budget"])
             lambda_cost = float(choice["lambda_cost"])
@@ -349,15 +357,20 @@ def evaluate_frozen(
                 per_seed = []
                 for random_seed in seeds:
                     subset = tuple(configuration.get("groups", ()))
-                    fixed_key = (policy, subset)
-                    if policy in ("prior", "initial", "static", "all") and fixed_key in fixed_test_cache:
+                    if policy in ("prior", "initial", "static", "all"):
+                        reusable_key: tuple[Any, ...] | None = (policy, subset)
+                    elif policy in ("random", "raw_kl", "information", "entropy_drop"):
+                        reusable_key = (policy, budget, threshold, random_seed)
+                    else:
+                        reusable_key = None
+                    if reusable_key is not None and reusable_key in reusable_test_cache:
                         cases = [{**case, "budget": budget, "lambda_cost": lambda_cost,
                                   "cache_reused": True, "wall_time_basis": "measured_compute_reference",
                                   "execution_wall_time_s": 0.0,
                                   "physical_prediction_calls": 0,
                                   "physical_prediction_query_rows": 0,
                                   "physical_hypothetical_query_rows": 0}
-                                 for case in fixed_test_cache[fixed_key]]
+                                 for case in reusable_test_cache[reusable_key]]
                         metrics = summarize(cases)
                     else:
                         cases, metrics = evaluate_configuration(rows=test, x=x, y=y, policy=policy,
@@ -365,8 +378,8 @@ def evaluate_frozen(
                             random_seed=random_seed, predictor=predictor, cache=cache,
                             columns=columns, costs=costs, models=models, prior=prior,
                             static_subset=subset)
-                        if policy in ("prior", "initial", "static", "all"):
-                            fixed_test_cache[fixed_key] = cases
+                        if reusable_key is not None:
+                            reusable_test_cache[reusable_key] = cases
                     for case in cases:
                         outcomes.append({**case, "random_seed": random_seed if policy == "random" else None,
                                          "frozen_choices_sha256": frozen_hash})
