@@ -1,6 +1,8 @@
-# NextCheck implementation and verification
+# IRONTRACE implementation and verification
 
 Completed 4 October 2026, America/Chicago. Application URL: http://127.0.0.1:8000. Launch with `./start.ps1`; exact clean setup, data preparation, model doctor, test, utility, evaluation, backend and frontend commands are in `README.md`.
+
+This report records a historical local validation run under the original NextCheck name. The public product is now IRONTRACE, by azaan noman. Paths under `artifacts/` below are reproducible local outputs, not files included in a GitHub clone. Current publication checks are recorded in [docs/PUBLIC_RELEASE.md](docs/PUBLIC_RELEASE.md).
 
 ## Delivered and running
 

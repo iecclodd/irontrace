@@ -16,7 +16,7 @@ def create_app(runtime=None):
             app.state.runtime.jobs.submit(lambda progress: app.state.runtime.initialize())
         yield
         app.state.runtime.jobs.close()
-    app=FastAPI(title='NextCheck',version='0.1.0',lifespan=lifespan)
+    app=FastAPI(title='IRONTRACE',description='by azaan noman — local hydraulic inspection replay',version='0.1.0',lifespan=lifespan)
     app.state.runtime=runtime
     app.add_middleware(CORSMiddleware,allow_origins=['http://127.0.0.1:5173','http://localhost:5173','http://127.0.0.1:8000'],
                        allow_methods=['GET','POST'],allow_headers=['Content-Type'])

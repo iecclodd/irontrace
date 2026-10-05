@@ -15,12 +15,14 @@ Open the cloned folder in Codex or another agent and paste this prompt:
 ```text
 Work in this cloned IRONTRACE repository. Read AGENTS.md and docs/codex-agent-setup.md first. Set up, prepare data, prepare the official model, run the doctor, start one local worker, and verify the app. Use only .venv and the exact repository commands. You may run setup and verification autonomously; pause only when the official gated TabPFN terms require me to review/accept them or when Hugging Face authentication is required. If access is denied, tell me to run .\.venv\Scripts\hf.exe auth login, then continue.
 
-After setup, open http://127.0.0.1:8000 and check Inspection and Benchmarks. For a fresh clone, choose Information for the first session because development-selected and value policies depend on generated artifacts. Test Recommend, Audit, Run recommended check, Autopilot, Stop/report, recorded replay, and benchmark readiness. Report exact commands, files inspected/changed, validation results, blockers, and remaining risk. Do not invent performance claims or expose credentials, hidden readings, test labels before termination, model weights, or private cache paths. Stop the server with Ctrl+C before CLI tests, utility fitting, evaluation, or backend tests, then restart it if browser verification is needed again.
+After setup, open http://127.0.0.1:8000 and check Inspection and Benchmarks. For a fresh clone, choose Information for the first session because value policies depend on generated artifacts. Test Recommend, Audit, Run recommended check, Autopilot, and Stop/report. For complete verification, run the documented smoke utility/evaluation commands, restart the server, record a replay, and run verify_live.py from a second terminal. Report exact commands, files inspected/changed, results, blockers, and remaining risk. Do not invent performance claims or expose credentials, hidden readings, test labels before termination, model weights, or private cache paths. Stop the server before direct model commands (doctor, pytest, utility fitting, evaluation); keep it running for browser checks, record_demo.py, and verify_live.py, which use its API.
 ```
 
 ## Windows quick start
 
 These instructions assume Windows PowerShell and a clone of this repository.
+
+The tested hardware is an NVIDIA RTX 4060 Ti with 8 GB VRAM. The locked installation uses CUDA 12.8 PyTorch; CPU-only, macOS, and Linux setups have not been validated. Allow several GB for dependencies, plus the approximately 836 MiB model and downloaded dataset. Model inference runs locally after preparation.
 
 1. Install [Git](https://git-scm.com/download/win), [uv](https://docs.astral.sh/uv/getting-started/installation/), and [Node.js](https://nodejs.org/en/download) (22.12 or newer; Node 24 is validated). The project requires Python 3.11; `uv` creates the environment. Check the tools:
 
@@ -99,7 +101,6 @@ Run the smoke path as a separate, optional study after stopping the server with 
 ```powershell
 .\.venv\Scripts\python.exe scripts/prepare_utility.py --smoke --context-limit 240 --utility-limit 6 --selection-limit 6
 .\.venv\Scripts\python.exe scripts/evaluate.py --smoke --context-limit 240 --utility-limit 6 --selection-limit 6 --test-limit 8 --budgets 0 2 4 6 8 11 --lambdas 0 .005 .01 .02 .05 .1
-
 ```
 
 The full capped study is a separate, optional longer run:
@@ -107,23 +108,27 @@ The full capped study is a separate, optional longer run:
 ```powershell
 .\.venv\Scripts\python.exe scripts/prepare_utility.py
 .\.venv\Scripts\python.exe scripts/evaluate.py
-
 ```
 
-After either run, restart the app before browser checks. To record an illustrative development replay while the server is running:
+After either run, run `.\start.ps1` again in the first terminal. In a second PowerShell terminal, enter the same cloned directory and record an illustrative development replay while the server keeps running:
 
 ```powershell
 .\.venv\Scripts\python.exe scripts/record_demo.py
 ```
 
-Smoke and full runs can take minutes or longer depending on GPU, cache state, and model initialization. Keep one GPU process only; stop the server before utility fitting, evaluation, tests, or other model-heavy commands. The validated machine has an NVIDIA RTX 4060 Ti with 8 GB and the lock uses CUDA 12.8. CPU, macOS, and Linux operation is unvalidated. Restart IRONTRACE after preparing utility artifacts so the worker revalidates model and utility identities. Run `--help` on each script for options. `NEXTCHECK_ARTIFACTS` remains a compatibility override for artifact location; scripts do not load `.env` automatically. To set it for one PowerShell process, use `$env:NEXTCHECK_ARTIFACTS = 'C:\path\to\artifacts'`.
+Reload the browser to see the new replay in the top selector. Smoke and full runs can take minutes or longer depending on GPU, cache state, and model initialization. Keep one GPU process only: stop the server before doctor, pytest, utility fitting, or evaluation; keep it running for `record_demo.py` and `verify_live.py`, which call its API. Restart IRONTRACE after preparing utility artifacts so the worker revalidates model and utility identities. Run `--help` on each script for options. `NEXTCHECK_ARTIFACTS` remains a compatibility override for artifact location; scripts do not load `.env` automatically. To set it for one PowerShell process, use `$env:NEXTCHECK_ARTIFACTS = 'C:\path\to\artifacts'`. Use the default location for `record_demo.py` and `verify_live.py`, which write to the repository's `artifacts/` directory.
 
 ## Frontend development and health checks
 
 Run the backend in one PowerShell window and the Vite dev server in another:
 
 ```powershell
+# Terminal 1: keep this running
 .\start.ps1
+```
+
+```powershell
+# Terminal 2: from the same repository
 npm.cmd --prefix frontend run dev
 ```
 
@@ -131,13 +136,29 @@ The Vite URL is http://127.0.0.1:5173 and proxies `/api` to port 8000. Check hea
 
 ## Verification commands
 
+With the backend stopped:
+
 ```powershell
 .\.venv\Scripts\python.exe -m pytest backend/tests -q
 npm.cmd --prefix frontend run build
+```
+
+For all eight live acceptance groups, first complete the data/model quick start and the **smoke utility + evaluation commands above**. The check deliberately requires real value models, a complete benchmark, and a recorded replay; an empty fresh clone will not pass it.
+
+```powershell
+# Terminal 1: start the backend and leave it running
+.\start.ps1
+```
+
+```powershell
+# Terminal 2: enter the same cloned folder first
+.\.venv\Scripts\python.exe scripts/record_demo.py
 .\.venv\Scripts\python.exe scripts/verify_live.py
 ```
 
-Run `verify_live.py` only after data and model preparation, utility preparation, a complete persisted benchmark, and a recorded replay exist. Stop the server before CLI tests, then use a second terminal in this order: `prepare_data.py`, `prepare_model.py`, `doctor.py`, `prepare_utility.py` (smoke or full), `evaluate.py` (matching scope), restart the server for `record_demo.py`, stop it again, then run `verify_live.py`. Repository evidence records 52 backend tests, a passing frontend build, and eight live acceptance groups against actual TabPFN 3.5. Repeat checks on your machine because device timings and caches vary.
+The live check should finish with `"status": "passed"` and `"checks": 8`. It calls the running backend rather than loading another model. Afterward, browse the app or stop Terminal 1 with `Ctrl+C`.
+
+Publication checks recorded **52 backend tests passed with no integration skip**, a passing frontend build, and eight live acceptance groups against actual TabPFN 3.5. See [release verification](docs/PUBLIC_RELEASE.md). Without prepared data, the real-model integration test skips; a skip is not a verified inference result.
 
 ## Troubleshooting
 

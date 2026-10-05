@@ -1,3 +1,3 @@
-"""NextCheck hydraulic inspection replay."""
+"""IRONTRACE hydraulic inspection replay."""
 
 __version__ = "0.1.0"

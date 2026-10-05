@@ -1,4 +1,4 @@
-# NextCheck demonstration
+# IRONTRACE demonstration
 
 1. Start `./start.ps1` and open http://127.0.0.1:8000. Wait for the verified model-ready badge. The app uses actual base TabPFN 3.5. Point out that costs are simulated and the target is internal pump leakage.
 2. Choose budget 6 and cost weight 0.02. Start a session with the development-selected policy. Read the displayed resolved policy and the number of selection examples. A static/prior winner is a legitimate outcome.

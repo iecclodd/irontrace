@@ -97,10 +97,10 @@ button:focus-visible, input:focus-visible, select:focus-visible, summary:focus-v
 .selection-note { margin: -4px 12px 12px; padding: 9px 11px; color: #53645f; background: #f6f9f8; border: 1px solid #e0e8e5; border-radius: 7px; font-size: 9px; line-height: 1.5; }
 .report-card { margin: 12px; padding: 14px; border: 1px solid #c9deda; border-radius: 8px; background: #fbfdfc; }
 .report-card h3 { margin: 0 0 10px; font-size: 13px; }
-.report-card dl { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 0; }
+.report-card dl { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin: 0; }
 .report-card dl div { display: flex; flex-direction: column; }
 .report-card dt { color: var(--muted); font-size: 8px; text-transform: uppercase; }
-.report-card dd { margin: 2px 0 0; font: 500 10px 'DM Mono', monospace; }
+.report-card dd { margin: 2px 0 0; font: 500 10px 'DM Mono', monospace; overflow-wrap: anywhere; }
 .candidate-list { padding: 7px; }
 .candidate-row { width: 100%; display: grid; grid-template-columns: 25px 1fr 66px; align-items: center; gap: 7px; position: relative; padding: 11px 8px; border: 1px solid transparent; border-bottom-color: #edf1f0; background: transparent; text-align: left; }
 .candidate-row:hover, .candidate-row.active { border-color: #c7dcd7; background: #f4f9f8; border-radius: 7px; }
@@ -203,7 +203,7 @@ footer span { display: inline-flex; align-items: center; gap: 5px; }
   .app-header nav { min-height: 42px; }
   .app-header nav button.active::after { bottom: -7px; }
   .header-actions { order: 3; width: 100%; justify-content: flex-start; }
-  .console-grid { grid-template-columns: 1fr 1fr; }
+  .console-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .action-column { grid-column: 1/-1; }
   .candidate-list { display: grid; grid-template-columns: 1fr 1fr; }
 }
@@ -217,7 +217,7 @@ footer span { display: inline-flex; align-items: center; gap: 5px; }
   .config-title { width: 100%; border: 0; }
   .configuration-bar .primary-button { width: 100%; margin: 0; }
   .config-note { max-width: none; }
-  .console-grid { grid-template-columns: 1fr; }
+  .console-grid { grid-template-columns: minmax(0, 1fr); }
   .action-column { grid-column: auto; }
   .candidate-list { display: block; }
   .timeline { grid-template-columns: 1fr; }

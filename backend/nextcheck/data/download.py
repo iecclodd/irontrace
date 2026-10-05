@@ -39,7 +39,7 @@ def download_archive(destination: Path, url: str = ARCHIVE_URL) -> dict:
         return {"url": url, "path": str(destination.resolve()), "sha256": sha256_file(destination), "bytes": destination.stat().st_size}
     part = destination.with_suffix(destination.suffix + ".part")
     try:
-        request = urllib.request.Request(url, headers={"User-Agent": "NextCheck/0.1 UCI dataset 447 research preparation"})
+        request = urllib.request.Request(url, headers={"User-Agent": "IRONTRACE/0.1 UCI dataset 447 research preparation"})
         with urllib.request.urlopen(request, timeout=60) as response, part.open("wb") as output:
             size = 0
             while chunk := response.read(1024 * 1024):

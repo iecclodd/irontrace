@@ -13,7 +13,7 @@ def main():
     args=parser.parse_args()
     os.chdir(ROOT)
     import uvicorn
-    print(f'NextCheck: http://127.0.0.1:{args.port} (one model worker; local binding)')
+    print(f'IRONTRACE by azaan noman: http://127.0.0.1:{args.port} (one model worker; local binding)')
     uvicorn.run('nextcheck.api:app',host='127.0.0.1',port=args.port,workers=1)
 
 if __name__=='__main__': main()

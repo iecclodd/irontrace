@@ -6,6 +6,13 @@ node_modules/
 dist/
 artifacts/
 .env
+.env.*
+!.env.example
+.cache/
+.models/
 *.sqlite*
 *.safetensors
+*.pt
+*.pth
+*.ckpt
 *.egg-info/

@@ -5,7 +5,8 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "nextcheck"
 version = "0.1.0"
-description = "Local hydraulic inspection replay with TabPFN 3.5"
+description = "IRONTRACE: local hydraulic inspection replay with TabPFN 3.5"
+authors = [{name = "azaan noman"}]
 requires-python = ">=3.11,<3.12"
 dependencies = [
   "fastapi", "pydantic", "numpy", "pandas", "scipy", "scikit-learn",

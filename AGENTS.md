@@ -14,7 +14,6 @@ From the repository root in Windows PowerShell:
 .\.venv\Scripts\python.exe -m pytest backend/tests -q
 npm.cmd --prefix frontend run build
 .\start.ps1
-.\.venv\Scripts\python.exe scripts/verify_live.py
 ```
 
 Open http://127.0.0.1:8000. `start.ps1` must use this checkout's `.venv` and one local model worker. `setup.ps1` installs the locked CUDA 12.8 dependency set and builds the frontend. `prepare_model.py` resolves the official gated checkpoint through local Hugging Face authentication after the user has reviewed and accepted its terms. It does not accept terms or request tokens. If access is denied, tell the operator to use `.\.venv\Scripts\hf.exe auth login`; never print credentials.
@@ -26,7 +25,9 @@ The numerical smoke path is:
 .\.venv\Scripts\python.exe scripts/evaluate.py --smoke --context-limit 240 --utility-limit 6 --selection-limit 6 --test-limit 8 --budgets 0 2 4 6 8 11 --lambdas 0 .005 .01 .02 .05 .1
 ```
 
-The full capped commands are `scripts/prepare_utility.py` and `scripts/evaluate.py` without `--smoke`. A fresh clone has no generated `artifacts/` directory until preparation runs. The delivered evidence labels the completed run as an 8-case smoke evaluation; do not call the full study complete. Stop the server before utility fitting, evaluation, tests, or other model-heavy commands, and keep one GPU process. The validated machine is an NVIDIA RTX 4060 Ti with 8 GB; CPU, macOS, and Linux are unvalidated.
+The full capped commands are `scripts/prepare_utility.py` and `scripts/evaluate.py` without `--smoke`. A fresh clone has no generated `artifacts/` directory until preparation runs. The delivered evidence labels the completed run as an 8-case smoke evaluation; do not call the full study complete. Stop the server before doctor, pytest, utility fitting, or evaluation, and keep one GPU process. The validated machine is an NVIDIA RTX 4060 Ti with 8 GB; CPU, macOS, and Linux are unvalidated.
+
+After a complete smoke evaluation, restart `start.ps1` and leave it running. In a second terminal at the repository root, run `.\.venv\Scripts\python.exe scripts/record_demo.py`, then `.\.venv\Scripts\python.exe scripts/verify_live.py`. These scripts call the running API and need the server alive. The live check requires matching prepared utility models, a complete benchmark, and a replay, and should report eight passed groups. Do not report a skipped model integration test as passed real inference.
 
 ## Evidence and privacy rules
 

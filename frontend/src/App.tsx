@@ -149,7 +149,7 @@ export default function App() {
 
   function exportTrace() {
     const blob = new Blob([JSON.stringify({ mode: replayMode ? 'recorded_replay' : 'live', session_id: session?.id ?? null, events }, null, 2)], { type: 'application/json' })
-    const url = URL.createObjectURL(blob); const link = document.createElement('a'); link.href = url; link.download = `nextcheck-trace-${session?.id ?? 'recorded'}.json`; link.click(); URL.revokeObjectURL(url)
+    const url = URL.createObjectURL(blob); const link = document.createElement('a'); link.href = url; link.download = `irontrace-trace-${session?.id ?? 'recorded'}.json`; link.click(); URL.revokeObjectURL(url)
   }
 
   const healthTone = health?.status === 'ready' ? 'teal' : health?.status === 'loading' ? 'warn' : 'danger'
@@ -158,7 +158,7 @@ export default function App() {
 
   return <div className="app-shell">
     <header className="app-header">
-      <a className="brand" href="#top" aria-label="NextCheck home"><span className="brand-mark"><FlaskConical /></span><span><strong>NextCheck</strong><small>Know what to measure next</small></span></a>
+      <a className="brand" href="#top" aria-label="IRONTRACE home"><span className="brand-mark"><FlaskConical /></span><span><strong>IRONTRACE</strong><small>by azaan noman</small></span></a>
       <nav aria-label="Primary navigation"><button className={view === 'inspection' ? 'active' : ''} onClick={() => setView('inspection')}>Inspection</button><button className={view === 'benchmark' ? 'active' : ''} onClick={() => setView('benchmark')}>Benchmarks</button></nav>
       <div className="header-actions">
         <StatusBadge tone={provenanceReady ? 'teal' : 'warn'} icon={provenanceReady ? CheckCircle2 : AlertTriangle}>TabPFN 3.5 {provenanceReady ? 'READY' : 'NOT READY'}</StatusBadge>
