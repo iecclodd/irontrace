@@ -121,7 +121,7 @@ button:disabled { cursor: not-allowed; opacity: .4; }
 .field input, .field select { height: 34px; padding: 0 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); color: var(--ink); font-size: 13px; }
 .field input { width: 88px; font-variant-numeric: tabular-nums; }
 .field select { width: 180px; }
-.field.wide select { width: 310px; }
+.field.wide select { width: 340px; }
 .field input:disabled, .field select:disabled { background: var(--subtle); color: var(--muted); }
 .toolbar-end { margin-left: auto; display: flex; align-items: center; gap: 14px; }
 .toolbar-end .note { max-width: 220px; text-align: right; font-size: 12px; }

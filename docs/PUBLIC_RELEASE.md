@@ -31,7 +31,7 @@ Validated 5 October 2026. This records the checks for the IRONTRACE rename and p
 
 The model checkpoint was already cached. The new download helper's absent-file path was tested with an explicit test fixture; a second 836 MiB download was not performed. Actual inference always used the real checkpoint. The successful doctor reported SHA-256 `ece4d67eadfea42eb0e610df5189bea60cb7f31073d81e9c7a019b76eacf0be3`.
 
-`irontrace-console.png`, `inspection-live.png`, `audit-live.png`, `benchmark-results.png`, `recorded-replay.png`, and `mobile-check.png` are captures of the renamed application. `benchmark-empty.png` is retained as historical empty-state evidence from the original NextCheck build. A separate empty-state preview was not rerun for this release because automatic tool policy blocked launching that additional preview process. The main application and live validation completed successfully.
+`inspection-live.png`, `audit-live.png`, `benchmark-results.png`, `recorded-replay.png`, and `mobile-check.png` are captures of the renamed application before the UI refresh. `irontrace-console.png` shows the refreshed UI; it renders the exact session values from the earlier live capture (session 93d6d1b8, model reference ece4d67e…, probabilities 42.9/38.1/19.0%) through a local API stub, because the refresh was made on a machine without the validated CUDA setup. It contains no new model output. `benchmark-empty.png` is retained as historical empty-state evidence from the original NextCheck build. A separate empty-state preview was not rerun for this release because automatic tool policy blocked launching that additional preview process. The main application and live validation completed successfully.
 
 ## Publication scope and independent review
 
