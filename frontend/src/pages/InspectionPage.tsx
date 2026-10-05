@@ -1,4 +1,4 @@
-import { Activity, CircleStop, Gauge, ListChecks, Play, RotateCcw, ScanSearch, Sparkles, SquareActivity } from 'lucide-react'
+import { Download, Play, RotateCcw, ScanSearch } from 'lucide-react'
 import { useState, type Dispatch, type SetStateAction } from 'react'
 import { AuditDrawer } from '../components/AuditDrawer'
 import { CandidateTable } from '../components/CandidateTable'
@@ -38,48 +38,65 @@ export function InspectionPage({ health, manifest, session, events, report, repl
 
   function inspectCandidate(id: string) { setActiveCandidate(id); setAuditOpen(true) }
 
+  const reportEntries = report ? Object.entries(report).filter(([key, value]) => key !== 'session' && ['string', 'number', 'boolean'].includes(typeof value)).slice(0, 8) : []
+  const progress = job ? Math.max(0, Math.min(1, job.progress)) : 0
+
   return <main className="page inspection-page">
-    <section className="configuration-bar" aria-label="Session configuration">
-      <div className="config-title"><span className="eyebrow">Live scenario</span><strong>{session ? `Session ${session.id.slice(0, 8)}` : 'Configure a new session'}</strong></div>
-      <label>Budget<input type="number" min="0" max="100" step="1" value={config.budget} onChange={(event) => setConfig((current) => ({ ...current, budget: Number(event.target.value) }))} disabled={replayMode} /></label>
-      <label>Cost weight<input type="number" min="0" step="0.005" value={config.lambdaCost} onChange={(event) => setConfig((current) => ({ ...current, lambdaCost: Number(event.target.value) }))} disabled={replayMode} /></label>
-      <label>Policy<select value={config.policy} onChange={(event) => setConfig((current) => ({ ...current, policy: event.target.value }))} disabled={replayMode}><option value="default">Selected on development data (recommended)</option><option value="information">Information</option><option value="value" disabled={!health?.utility_ready}>Empirical value</option><option value="value_no_residual" disabled={!health?.utility_ready}>Value without residual</option><option value="entropy_drop">Entropy drop</option><option value="raw_kl">Raw KL</option><option value="random">Random</option><option value="static">Static</option><option value="prior">Prior only</option><option value="all">All panels</option></select></label>
-      <button className="primary-button" onClick={onCreate} disabled={!ready || busy || replayMode}><RotateCcw size={16} /> {session ? 'Start new session' : 'Start live session'}</button>
-      {session && !replayMode ? <span className="config-note">Changes apply to a new session and never rewrite past charges.</span> : null}
+    <section className="card toolbar" aria-label="Session configuration">
+      <div className="toolbar-title">
+        <strong>{session ? `Session ${session.id.slice(0, 8)}` : 'New session'}{replayMode ? <span className="tag">Recorded replay</span> : session?.status === 'active' ? <span className="tag accent">Live</span> : null}</strong>
+        <span>{replayMode ? 'Read-only. Controls are disabled.' : 'Costs are simulated units.'}</span>
+      </div>
+      <label className="field">Budget<input type="number" min="0" max="100" step="1" value={config.budget} onChange={(event) => setConfig((current) => ({ ...current, budget: Number(event.target.value) }))} disabled={replayMode} /></label>
+      <label className="field">Cost weight<input type="number" min="0" step="0.005" value={config.lambdaCost} onChange={(event) => setConfig((current) => ({ ...current, lambdaCost: Number(event.target.value) }))} disabled={replayMode} /></label>
+      <label className="field wide">Policy<select value={config.policy} onChange={(event) => setConfig((current) => ({ ...current, policy: event.target.value }))} disabled={replayMode}><option value="default">Selected on development data (recommended)</option><option value="information">Information</option><option value="value" disabled={!health?.utility_ready}>Empirical value</option><option value="value_no_residual" disabled={!health?.utility_ready}>Value without residual</option><option value="entropy_drop">Entropy drop</option><option value="raw_kl">Raw KL</option><option value="random">Random</option><option value="static">Static</option><option value="prior">Prior only</option><option value="all">All panels</option></select></label>
+      <div className="toolbar-end">
+        {session && !replayMode ? <span className="note">Changes apply to a new session and never rewrite past charges.</span> : null}
+        <button className="btn primary" onClick={onCreate} disabled={!ready || busy || replayMode}>{session ? <RotateCcw /> : <Play />} {session ? 'Start new session' : 'Start live session'}</button>
+      </div>
     </section>
 
     <div className="console-grid">
-      <section className="surface panels-column"><div className="section-heading"><div><span className="eyebrow">Available observations</span><h2>Sensor panels</h2></div><span className="count-chip">{session?.observed_groups.length ?? 0}/{manifest?.panels.length ?? 0}</span></div>
-        {manifest ? <SensorPanels panels={manifest.panels} observedGroups={session?.observed_groups ?? []} visibleValues={session?.visible_values ?? {}} costs={session?.costs ?? config.costs} /> : <div className="skeleton-block">Waiting for the public panel manifest…</div>}
+      <section className="card panels-column">
+        <div className="card-head"><div><h2>Sensor panels</h2><p>Readings unlock when a panel is acquired.</p></div><span className="count">{session?.observed_groups.length ?? 0} of {manifest?.panels.length ?? 0}</span></div>
+        {manifest ? <SensorPanels panels={manifest.panels} observedGroups={session?.observed_groups ?? []} visibleValues={session?.visible_values ?? {}} costs={session?.costs ?? config.costs} /> : <div className="empty"><span>Waiting for the public panel manifest…</span></div>}
       </section>
 
-      <section className="surface prediction-column"><div className="section-heading"><div><span className="eyebrow">Internal pump leakage target</span><h2>Model probabilities</h2></div><Activity className="section-icon" /></div>
+      <section className="card prediction-column">
+        <div className="card-head"><div><h2>Leakage probabilities</h2><p>Internal pump leakage, from the current model output.</p></div></div>
         <PredictionBars labels={labels} probabilities={session?.probabilities ?? null} />
         <div className="stat-grid">
-          <div><span>Simulated cost</span><strong>{session ? `${session.spent} / ${session.budget}` : '—'}</strong><small>units spent</small></div>
+          <div><span>Spent</span><strong>{session ? `${session.spent} / ${session.budget}` : '—'}</strong><small>simulated units</small></div>
+          <div><span>Remaining</span><strong>{session?.remaining_budget ?? config.budget}</strong><small>simulated units</small></div>
           <div><span>Panels acquired</span><strong>{session?.observed_groups.length ?? 0}</strong><small>including initial</small></div>
           <div><span>Inference time</span><strong>{session && Number.isFinite(session.inference_ms) ? `${session.inference_ms.toFixed(0)} ms` : '—'}</strong><small>backend measured</small></div>
-          <div><span>Remaining budget</span><strong>{session?.remaining_budget ?? config.budget}</strong><small>simulated units</small></div>
         </div>
-        <div className="model-strip"><Gauge size={17} /><div><span>Model reference</span><strong>{session?.model_ref || (health?.model_ready ? 'Ready; session not started' : 'TabPFN 3.5 not yet ready')}</strong>{session ? <small>Resolved policy: {session.policy}</small> : null}</div></div>
-        {session?.selection_note ? <p className="selection-note">{session.selection_note}</p> : null}
-        {report ? <div className="report-card"><span className="eyebrow">Completed report</span><h3>Retrospective outcome</h3><dl>{Object.entries(report).filter(([key, value]) => key !== 'session' && ['string', 'number', 'boolean'].includes(typeof value)).slice(0, 8).map(([key, value]) => <div key={key}><dt>{key.replaceAll('_', ' ')}</dt><dd>{String(value)}</dd></div>)}</dl></div> : null}
+        <dl className="meta-list">
+          <div><dt>Model reference</dt><dd className={session?.model_ref ? 'mono' : ''} title={session?.model_ref || undefined}>{session?.model_ref || (health?.model_ready ? 'Ready; session not started' : 'TabPFN 3.5 not yet ready')}</dd></div>
+          {session ? <div><dt>Resolved policy</dt><dd>{session.policy.replaceAll('_', ' ')}</dd></div> : null}
+          {session?.selection_note ? <div><dt>Selection</dt><dd title={session.selection_note}>{session.selection_note}</dd></div> : null}
+        </dl>
+        {report ? <div className="report"><h3>Retrospective outcome</h3><dl>{reportEntries.map(([key, value]) => <div key={key}><dt>{key.replaceAll('_', ' ')}</dt><dd>{String(value)}</dd></div>)}</dl></div> : null}
       </section>
 
-      <section className="surface action-column"><div className="section-heading"><div><span className="eyebrow">Current decision</span><h2>Ranked checks</h2></div><button className="text-button" disabled={!auditCandidate} onClick={() => setAuditOpen(true)}><ScanSearch size={15} /> Audit</button></div>
+      <section className="card action-column">
+        <div className="card-head"><div><h2>Ranked checks</h2><p>Click a check to see its audit details.</p></div><button className="btn ghost" disabled={!auditCandidate} onClick={() => setAuditOpen(true)}><ScanSearch /> Audit</button></div>
         <CandidateTable candidates={candidates} panels={manifest?.panels ?? []} selectedAction={selected} activeCandidate={activeCandidate} onSelect={inspectCandidate} />
-        <div className="action-stack">
-          <button className="primary-button wide" onClick={() => selected && onAcquire(selected)} disabled={!active || busy || !selected}><Play size={16} /> Run recommended check</button>
-          <div className="action-pair"><button className="secondary-button" onClick={onRecommend} disabled={!active || busy}><ListChecks size={16} /> Recommend</button><button className="secondary-button" onClick={onRun} disabled={!active || busy}><Sparkles size={16} /> Autopilot</button><button className="danger-button" onClick={onStop} disabled={!active || (busy && !job)}><CircleStop size={16} /> Stop</button></div>
+        <div className="actions">
+          <button className="btn primary block" onClick={() => selected && onAcquire(selected)} disabled={!active || busy || !selected}>Run recommended check</button>
+          <div className="actions-row"><button className="btn" onClick={onRecommend} disabled={!active || busy}>Recommend</button><button className="btn" onClick={onRun} disabled={!active || busy}>Autopilot</button><button className="btn danger" onClick={onStop} disabled={!active || (busy && !job)}>Stop</button></div>
         </div>
-        {job ? <div className="job-progress" role="status"><div><SquareActivity size={16} /><span>{job.status === 'queued' ? 'Queued' : job.status === 'running' ? 'Numerical job running' : job.status}</span><strong>{Math.round(Math.max(0, Math.min(1, job.progress)) * 100)}%</strong></div><progress max="1" value={Math.max(0, Math.min(1, job.progress))} /></div> : null}
-        {replayMode ? <div className="readonly-note">Recorded replay is immutable. Live recommendations, budget changes, and branch actions are disabled.</div> : null}
-        {session?.stop_reason ? <div className="stop-note"><strong>Session stopped</strong><span>{session.stop_reason.replaceAll('_', ' ')}</span></div> : null}
+        {job ? <div className="inline-status job" role="status"><div><span>{job.status === 'queued' ? 'Queued' : job.status === 'running' ? 'Numerical job running' : job.status === 'completed' ? 'Completed' : job.status}</span><span>{Math.round(progress * 100)}%</span></div><div className="job-bar"><span style={{ width: `${progress * 100}%` }} /></div></div> : null}
+        {replayMode ? <div className="inline-status">Recorded replay is immutable. Live recommendations, budget changes, and branch actions are disabled.</div> : null}
+        {session?.stop_reason ? <div className="inline-status"><strong>Session stopped</strong> · {session.stop_reason.replaceAll('_', ' ')}</div> : null}
       </section>
     </div>
 
-    <section className="surface trace-section"><div className="section-heading"><div><span className="eyebrow">Sanitized append-only record</span><h2>Decision trace</h2></div><button className="secondary-button compact" disabled={events.length === 0} onClick={onExport}>Export trace</button></div><TraceTimeline events={events} /></section>
-    <AuditDrawer candidate={auditCandidate} candidates={candidates} panels={manifest?.panels ?? []} open={auditOpen} onClose={() => setAuditOpen(false)} />
+    <section className="card trace-section">
+      <div className="card-head"><div><h2>Decision trace</h2><p>Sanitized, append-only record of this session.</p></div><button className="btn" disabled={events.length === 0} onClick={onExport}><Download /> Export</button></div>
+      <TraceTimeline events={events} />
+    </section>
     {auditOpen ? <button className="drawer-backdrop" onClick={() => setAuditOpen(false)} aria-label="Close acquisition audit" /> : null}
+    <AuditDrawer candidate={auditCandidate} candidates={candidates} panels={manifest?.panels ?? []} open={auditOpen} onClose={() => setAuditOpen(false)} />
   </main>
 }

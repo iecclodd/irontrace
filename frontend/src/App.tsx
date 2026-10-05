@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { AlertTriangle, Archive, Beaker, CheckCircle2, ChevronDown, DatabaseZap, FlaskConical, LoaderCircle, Radio, RefreshCw, ShieldCheck } from 'lucide-react'
+import { AlertTriangle, ChevronDown, DatabaseZap, Info, LoaderCircle, RefreshCw } from 'lucide-react'
 import { api, ApiError, errorMessage } from './api'
-import { StatusBadge } from './components/StatusBadge'
 import { BenchmarkPage } from './pages/BenchmarkPage'
 import { InspectionPage, type SessionConfig } from './pages/InspectionPage'
 import type { BenchmarkResponse, Health, Job, Manifest, ReplayRecord, ReplaySummary, Session, TraceEvent } from './types'
@@ -152,27 +151,29 @@ export default function App() {
     const url = URL.createObjectURL(blob); const link = document.createElement('a'); link.href = url; link.download = `irontrace-trace-${session?.id ?? 'recorded'}.json`; link.click(); URL.revokeObjectURL(url)
   }
 
-  const healthTone = health?.status === 'ready' ? 'teal' : health?.status === 'loading' ? 'warn' : 'danger'
   const provenanceReady = health?.model_ready && Object.keys(modelInfo ?? {}).length > 0
   const blockers = useMemo(() => health?.blockers ?? [], [health])
 
+  const modelLabel = provenanceReady ? 'TabPFN 3.5 ready' : health?.status === 'loading' ? 'TabPFN 3.5 loading' : 'TabPFN 3.5 not ready'
+  const modelTone = provenanceReady ? 'ready' : health?.status === 'loading' ? 'warn' : 'danger'
+
   return <div className="app-shell">
     <header className="app-header">
-      <a className="brand" href="#top" aria-label="IRONTRACE home"><span className="brand-mark"><FlaskConical /></span><span><strong>IRONTRACE</strong><small>by azaan noman</small></span></a>
-      <nav aria-label="Primary navigation"><button className={view === 'inspection' ? 'active' : ''} onClick={() => setView('inspection')}>Inspection</button><button className={view === 'benchmark' ? 'active' : ''} onClick={() => setView('benchmark')}>Benchmarks</button></nav>
-      <div className="header-actions">
-        <StatusBadge tone={provenanceReady ? 'teal' : 'warn'} icon={provenanceReady ? CheckCircle2 : AlertTriangle}>TabPFN 3.5 {provenanceReady ? 'READY' : 'NOT READY'}</StatusBadge>
-        <StatusBadge tone={replayMode ? 'neutral' : healthTone} icon={replayMode ? Archive : Radio}>{replayMode ? 'RECORDED REPLAY' : 'LIVE INFERENCE'}</StatusBadge>
-        <StatusBadge icon={Beaker}>SIMULATED ACQUISITION COSTS</StatusBadge>
-        <label className="replay-select"><span className="sr-only">Select live mode or a recorded replay</span><Archive size={15} /><select value={selectedReplay} onChange={(event) => void chooseReplay(event.target.value)}><option value="live">Live session</option>{replays.map((replay) => <option value={replay.id} key={replay.id}>{replay.title ?? replay.name ?? replay.id}</option>)}</select><ChevronDown size={14} /></label>
+      <div className="header-inner">
+        <a className="brand" href="#top" aria-label="IRONTRACE home">IRONTRACE<span>by azaan noman</span></a>
+        <nav className="tabs" aria-label="Primary navigation"><button className={view === 'inspection' ? 'active' : ''} onClick={() => setView('inspection')}>Inspection</button><button className={view === 'benchmark' ? 'active' : ''} onClick={() => setView('benchmark')}>Benchmarks</button></nav>
+        <div className="header-actions">
+          <span className={`status ${modelTone}`} title={replayMode ? 'Viewing a recorded replay' : `Live inference: ${health?.status ?? 'connecting'}`}><span className="dot" />{modelLabel}</span>
+          <label className="select-wrap"><span className="sr-only">Select live mode or a recorded replay</span><select value={selectedReplay} onChange={(event) => void chooseReplay(event.target.value)}><option value="live">Live session</option>{replays.map((replay) => <option value={replay.id} key={replay.id}>{replay.title ?? replay.name ?? replay.id}</option>)}</select><ChevronDown size={14} /></label>
+        </div>
       </div>
     </header>
 
-    {health?.utility_blockers?.length ? <section className="readiness-banner" role="status"><div><strong>Empirical value policies unavailable</strong>{health.utility_blockers.map((message) => <p key={message}>{message}</p>)}</div></section> : null}
-    {health?.status !== 'ready' && view === 'inspection' ? <section className="readiness-banner" role="status"><span className="readiness-icon">{health?.status === 'loading' ? <LoaderCircle className="spin" /> : <DatabaseZap />}</span><div><strong>{health?.status === 'loading' ? 'Backend is preparing resources' : 'Live inference is unavailable'}</strong><p>{blockers[0] ?? 'Start the FastAPI backend on 127.0.0.1:8000, prepare the public dataset, and complete the TabPFN 3.5 model doctor. This console will not substitute another model.'}</p>{blockers.length > 1 ? <details><summary>{blockers.length - 1} more blockers</summary>{blockers.slice(1).map((blocker) => <p key={blocker}>{blocker}</p>)}</details> : null}</div><button className="secondary-button" onClick={() => void loadBootstrap()}><RefreshCw size={15} /> Recheck</button></section> : null}
-    {error ? <div className="global-error" role="alert"><AlertTriangle size={18} /><div><strong>Action could not be completed</strong><span>{error}</span></div><button onClick={() => setError(null)} aria-label="Dismiss error">Dismiss</button></div> : null}
+    {health?.utility_blockers?.length ? <section className="banner warn" role="status"><Info /><div><strong>Empirical value policies unavailable</strong>{health.utility_blockers.map((message) => <p key={message}>{message}</p>)}</div></section> : null}
+    {health?.status !== 'ready' && view === 'inspection' ? <section className="banner warn" role="status">{health?.status === 'loading' ? <LoaderCircle className="spin" /> : <DatabaseZap />}<div><strong>{health?.status === 'loading' ? 'Backend is preparing resources' : 'Live inference is unavailable'}</strong><p>{blockers[0] ?? 'Start the FastAPI backend on 127.0.0.1:8000, prepare the public dataset, and complete the TabPFN 3.5 model doctor. This console will not substitute another model.'}</p>{blockers.length > 1 ? <details><summary>{blockers.length - 1} more blockers</summary>{blockers.slice(1).map((blocker) => <p key={blocker}>{blocker}</p>)}</details> : null}</div><button className="btn" onClick={() => void loadBootstrap()}><RefreshCw /> Recheck</button></section> : null}
+    {error ? <div className="banner danger" role="alert"><AlertTriangle /><div><strong>Action could not be completed</strong><p>{error}</p></div><button className="btn ghost" onClick={() => setError(null)} aria-label="Dismiss error">Dismiss</button></div> : null}
 
     {view === 'inspection' ? <InspectionPage health={health} manifest={manifest} session={session} events={events} report={report} replayMode={replayMode} config={config} setConfig={setConfig} busy={busy} job={job} onCreate={createSession} onRecommend={recommend} onAcquire={acquire} onRun={autopilot} onStop={stop} onExport={exportTrace} /> : <BenchmarkPage data={benchmarks} loading={benchmarkLoading} error={benchmarkError} onReload={() => void loadBenchmarks()} />}
-    <footer><span><ShieldCheck size={14} /> Local software replay · no machinery control or repair guidance</span><span>{health ? `API status: ${health.status}` : 'Connecting to local API…'}</span></footer>
+    <footer><div><span>Local software replay with simulated acquisition costs. No machinery control or repair guidance.</span><span>{health ? `API ${health.status}` : 'Connecting to local API…'}</span></div></footer>
   </div>
 }
