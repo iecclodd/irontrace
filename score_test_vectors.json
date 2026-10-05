@@ -1,0 +1,25 @@
+{
+  "description": "Constructed mathematical fixtures; these are not model results.",
+  "cases": [
+    {
+      "name": "equal-hypotheticals-disagree-with-current",
+      "q0": [0.3333333333333333, 0.3333333333333333, 0.3333333333333333],
+      "qm": [[0.8, 0.1, 0.1], [0.8, 0.1, 0.1]],
+      "expect_information_zero": true,
+      "expect_residual_positive": true
+    },
+    {
+      "name": "coherent-but-wrong",
+      "q0": [0.1, 0.8, 0.1],
+      "qm": [[0.18, 0.72, 0.1], [0.02, 0.88, 0.1]],
+      "true_label": 2,
+      "expect_information_positive": true,
+      "expect_residual_zero": true
+    },
+    {
+      "name": "clipped-tiny-probabilities",
+      "q0": [1.0, 0.0, 0.0],
+      "qm": [[0.0, 1.0, 0.0], [0.0, 0.0, 1.0]]
+    }
+  ]
+}
