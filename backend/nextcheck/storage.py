@@ -54,4 +54,3 @@ class Storage:
     def events(self, sid):
         with self.lock:
             return [json.loads(r[0]) for r in self.connection.execute('SELECT payload FROM events WHERE session_id=? ORDER BY sequence',(sid,))]
-

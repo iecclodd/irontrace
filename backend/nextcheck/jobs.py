@@ -36,4 +36,3 @@ class Jobs:
 
     def close(self):
         self.executor.shutdown(wait=True, cancel_futures=True)
-

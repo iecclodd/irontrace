@@ -9,4 +9,3 @@ class Settings:
     root: Path = ROOT
     artifacts: Path = Path(os.environ.get('NEXTCHECK_ARTIFACTS', str(ROOT / 'artifacts')))
     seed: int = 20261004
-

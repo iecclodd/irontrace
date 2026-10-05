@@ -15,4 +15,3 @@ class Mutation(StrictModel):
 class Acquire(Mutation):
     group_id: str
     idempotency_key: str = Field(min_length=8, max_length=128)
-
