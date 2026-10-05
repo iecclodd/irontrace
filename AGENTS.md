@@ -17,7 +17,7 @@ npm.cmd --prefix frontend run build
 .\.venv\Scripts\python.exe scripts/verify_live.py
 ```
 
-Open http://127.0.0.1:8000. `start.ps1` must use this checkout's `.venv` and one local model worker. `setup.ps1` installs the locked CUDA 12.8 dependency set and builds the frontend. `prepare_model.py` resolves the official gated checkpoint through local Hugging Face authentication after the user has reviewed and accepted its terms. It does not accept terms or request tokens. If access is denied, tell the operator to use `hf auth login`; never print credentials.
+Open http://127.0.0.1:8000. `start.ps1` must use this checkout's `.venv` and one local model worker. `setup.ps1` installs the locked CUDA 12.8 dependency set and builds the frontend. `prepare_model.py` resolves the official gated checkpoint through local Hugging Face authentication after the user has reviewed and accepted its terms. It does not accept terms or request tokens. If access is denied, tell the operator to use `.\.venv\Scripts\hf.exe auth login`; never print credentials.
 
 The numerical smoke path is:
 
@@ -26,7 +26,7 @@ The numerical smoke path is:
 .\.venv\Scripts\python.exe scripts/evaluate.py --smoke --context-limit 240 --utility-limit 6 --selection-limit 6 --test-limit 8 --budgets 0 2 4 6 8 11 --lambdas 0 .005 .01 .02 .05 .1
 ```
 
-The full capped commands are `scripts/prepare_utility.py` and `scripts/evaluate.py` without `--smoke`. A fresh clone has no generated `artifacts/` directory until preparation runs. The delivered evidence labels the completed run as an 8-case smoke evaluation; do not call the full study complete.
+The full capped commands are `scripts/prepare_utility.py` and `scripts/evaluate.py` without `--smoke`. A fresh clone has no generated `artifacts/` directory until preparation runs. The delivered evidence labels the completed run as an 8-case smoke evaluation; do not call the full study complete. Stop the server before utility fitting, evaluation, tests, or other model-heavy commands, and keep one GPU process. The validated machine is an NVIDIA RTX 4060 Ti with 8 GB; CPU, macOS, and Linux are unvalidated.
 
 ## Evidence and privacy rules
 
@@ -37,6 +37,10 @@ The full capped commands are `scripts/prepare_utility.py` and `scripts/evaluate.
 - Preserve the four disjoint block splits. Test labels are available only after decisions. Preserve model, data, utility-model, and artifact identity checks.
 - Costs are simulated. The app does not control hardware or provide repair or safety advice.
 - Keep runtime artifacts, environments, `node_modules`, full data, weights, and secrets out of Git. Do not add a software license.
+
+## Modular boundaries and concurrency
+
+Keep data/model work in `backend/nextcheck/data`, `backend/nextcheck/model`, `scripts/doctor.py`, and `scripts/prepare_data.py`; acquisition logic in `backend/nextcheck/acquisition`, `backend/nextcheck/agent`, and `backend/nextcheck/replay`; evaluation in `backend/nextcheck/evaluation`, `scripts/prepare_utility.py`, and `scripts/evaluate.py`; and UI work in `frontend`. API, storage, jobs, shared schemas, launcher, and documentation are coordinator-owned. Preserve four disjoint block splits, one model worker, and one GPU process. Parallel writers use isolated worktrees; no child agent spawns grandchildren.
 
 ## Ownership and changes
 
