@@ -20,6 +20,7 @@ from nextcheck.evaluation.benchmark import (
     validate_splits,
 )
 from nextcheck.evaluation.provenance import environment_info, sha256, write_json
+from nextcheck.evaluation.metrics import summarize
 
 
 def artifact_root(repository: Path) -> Path:
@@ -337,6 +338,7 @@ def evaluate_frozen(
         cache = DiagnosticCache(engine, x, columns, names)
         outcomes: list[dict[str, Any]] = []
         result_summaries: list[dict[str, Any]] = []
+        fixed_test_cache: dict[tuple[str, tuple[str, ...]], list[dict[str, Any]]] = {}
         for key, choice in choices["choices"].items():
             budget = float(choice["budget"])
             lambda_cost = float(choice["lambda_cost"])
@@ -346,11 +348,20 @@ def evaluate_frozen(
                 seeds = RANDOM_SEEDS if policy == "random" else (RANDOM_SEEDS[0],)
                 per_seed = []
                 for random_seed in seeds:
-                    cases, metrics = evaluate_configuration(rows=test, x=x, y=y, policy=policy,
-                        budget=budget, lambda_cost=lambda_cost, threshold=threshold,
-                        random_seed=random_seed, predictor=predictor, cache=cache,
-                        columns=columns, costs=costs, models=models, prior=prior,
-                        static_subset=tuple(configuration.get("groups", ())))
+                    subset = tuple(configuration.get("groups", ()))
+                    fixed_key = (policy, subset)
+                    if policy in ("prior", "initial", "static", "all") and fixed_key in fixed_test_cache:
+                        cases = [{**case, "budget": budget, "lambda_cost": lambda_cost}
+                                 for case in fixed_test_cache[fixed_key]]
+                        metrics = summarize(cases)
+                    else:
+                        cases, metrics = evaluate_configuration(rows=test, x=x, y=y, policy=policy,
+                            budget=budget, lambda_cost=lambda_cost, threshold=threshold,
+                            random_seed=random_seed, predictor=predictor, cache=cache,
+                            columns=columns, costs=costs, models=models, prior=prior,
+                            static_subset=subset)
+                        if policy in ("prior", "initial", "static", "all"):
+                            fixed_test_cache[fixed_key] = cases
                     for case in cases:
                         outcomes.append({**case, "random_seed": random_seed if policy == "random" else None,
                                          "frozen_choices_sha256": frozen_hash})
