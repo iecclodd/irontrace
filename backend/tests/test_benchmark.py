@@ -95,3 +95,18 @@ def test_nonpositive_value_stops_without_hidden_reveal(monkeypatch):
     assert all(item["cost"] == 0 and item["purchases"] == 0 for item in outcomes)
     assert outcomes[0]["trace"] == []
     assert score_outcomes(outcomes, np.array([0, 2]))[1]["true_label"] == 2
+
+
+def test_random_uses_no_hypothetical_queries():
+    columns = {"initial": [0], "pressure": [1], **{g: [] for g in GROUPS if g != "pressure"}}
+    costs = {"initial": 0, "pressure": 4, "flow": 3, "vibration": 1, "power": 2, "temperature": 1}
+    class NoDiagnostics:
+        def get(self, *_):
+            raise AssertionError("random acquisition must not compute diagnostics")
+    outcome = run_actions(index=0, row=np.array([1.0, 10.0]), policy="random", budget=6,
+        lambda_cost=0.02, threshold=0, random_seed=1, predictor=CountingPredictor(FakePredictor()),
+        cache=NoDiagnostics(), columns=columns, costs=costs, models={}, prior=np.array([0.5, 0.3, 0.2]))
+    assert outcome["cost"] <= 6
+    assert outcome["prediction_calls"] == 1
+    assert outcome["prediction_query_rows"] == 1
+    assert outcome["hypothetical_query_rows"] == 0

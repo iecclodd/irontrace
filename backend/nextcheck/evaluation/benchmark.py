@@ -257,18 +257,37 @@ def run_actions(
     calls = query_rows = hypothetical_rows = 0
     rng = np.random.default_rng(random_seed + index)
     trace: list[dict[str, Any]] = []
+    stop_reason: str
     if policy == "prior":
         probabilities = prior.tolist()
+        stop_reason = "no_measurement"
     elif policy in ("initial", "static", "all"):
         groups = static_subset if policy == "static" else (GROUPS if policy == "all" else ())
         probabilities, elapsed = _single_prediction(predictor, mask_row(row, groups, columns))
         calls = query_rows = 1
+        stop_reason = {"initial": "no_measurement", "static": "fixed_subset_complete", "all": "all_panels_reference"}[policy]
+    elif policy == "random":
+        # Random needs only the public costs and mask. It must not run the
+        # diagnostic sampler or pay for hypothetical model queries.
+        for _ in range(len(GROUPS)):
+            remaining = budget - sum(costs[group] for group in groups)
+            feasible = [group for group in GROUPS if group not in groups and costs[group] <= remaining]
+            if not feasible:
+                break
+            action = str(feasible[int(rng.integers(len(feasible)))])
+            groups = tuple(group for group in GROUPS if group in (*groups, action))
+            trace.append({"group_id": action, "cost": costs[action], "remaining_budget_after": budget - sum(costs[group] for group in groups)})
+        probabilities, elapsed = _single_prediction(predictor, mask_row(row, groups, columns))
+        calls = query_rows = 1
+        stop_reason = "no_groups_remaining" if len(groups) == len(GROUPS) else "budget_exhausted"
     else:
         probabilities = []
+        stop_reason = "no_predicted_net_value"
         for _ in range(len(GROUPS) + 1):
             remaining = budget - sum(costs[group] for group in groups)
             feasible = [group for group in GROUPS if group not in groups and costs[group] <= remaining]
             if not feasible:
+                stop_reason = "no_groups_remaining" if len(groups) == len(GROUPS) else "budget_exhausted"
                 probabilities, seconds = _single_prediction(predictor, mask_row(row, groups, columns))
                 elapsed += seconds
                 calls += 1
@@ -296,6 +315,7 @@ def run_actions(
         "row_index": index, "policy": policy, "budget": budget,
         "lambda_cost": lambda_cost, "observed_groups": ["initial", *groups],
         "probabilities": probabilities, "cost": spent, "purchases": len(groups),
+        "stop_reason": stop_reason,
         "prediction_calls": calls, "prediction_query_rows": query_rows,
         "hypothetical_query_rows": hypothetical_rows,
         "wall_time_s": elapsed, "trace": trace,

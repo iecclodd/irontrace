@@ -216,6 +216,37 @@ def _null_labels(y: np.ndarray, splits: dict[str, Any]) -> np.ndarray:
     return shuffled
 
 
+def _plot_value_scatter(points: list[dict[str, Any]], path: Path) -> None:
+    import matplotlib
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+
+    if not points:
+        return
+    actual = np.asarray([point["actual_delta"] for point in points], dtype=float)
+    predicted = (
+        np.asarray([point["predicted_delta"] for point in points], dtype=float),
+        np.asarray([point["predicted_without_residual"] for point in points], dtype=float),
+    )
+    figure, axes = plt.subplots(1, 2, figsize=(10, 4), sharex=True, sharey=True)
+    bounds = np.concatenate((actual, *predicted))
+    lower, upper = np.quantile(bounds, [0.01, 0.99])
+    if lower == upper:
+        lower, upper = lower - 1, upper + 1
+    for axis, values, title in zip(axes, predicted, ("Value model", "No-residual ablation")):
+        axis.scatter(values, actual, s=12, alpha=0.45)
+        axis.plot([lower, upper], [lower, upper], color="gray", linewidth=1)
+        axis.set_xlim(lower, upper)
+        axis.set_ylim(lower, upper)
+        axis.set_title(title)
+        axis.set_xlabel("Predicted one-step loss improvement (nats)")
+    axes[0].set_ylabel("Realized one-step loss improvement (nats)")
+    figure.suptitle(f"Frozen test counterfactuals · {len(points)} state-action examples")
+    figure.tight_layout()
+    figure.savefig(path, dpi=160)
+    plt.close(figure)
+
+
 def evaluate_null_task(
     *, x: np.ndarray, y: np.ndarray, splits: dict[str, Any], names: list[str],
     manifest: dict[str, Any], context: list[int], utility: list[int],
@@ -259,7 +290,7 @@ def evaluate_frozen(
     output_dir.mkdir(parents=True, exist_ok=False)
     status_path = output_dir / "execution_status.json"
     write_json(status_path, {"status": "running", "stage": "loading_prepared_data", "run_id": run_id})
-    scope = "full" if all(limit is None for limit in (context_limit, utility_limit, selection_limit, test_limit)) and tuple(budgets) == BUDGETS and tuple(lambdas) == LAMBDAS else "smoke"
+    scope = "full" if include_null and all(limit is None for limit in (context_limit, utility_limit, selection_limit, test_limit)) and tuple(budgets) == BUDGETS and tuple(lambdas) == LAMBDAS else "smoke"
     try:
         x, y, names, splits, manifest, prepared_dir = load_prepared(repository, data_dir)
         context = capped_rows(splits, "context", context_limit)
@@ -344,15 +375,21 @@ def evaluate_frozen(
                           "predicted_without_residual": models["value_no_residual"].predict(example["candidate"], example["observed_groups"], example["probabilities"])}
                          for example in test_examples]
         write_json(output_dir / "value_scatter.json", value_scatter)
+        _plot_value_scatter(value_scatter, output_dir / "value_scatter.png")
         null_result = None
+        blockers: list[str] = []
         if include_null:
             write_json(status_path, {"status": "running", "stage": "null_task", "run_id": run_id, "frozen_choices_sha256": frozen_hash})
-            null_result = evaluate_null_task(x=x, y=y, splits=splits, names=names, manifest=manifest,
-                context=context, utility=utility, selection=selection, test=test,
-                budget=6 if 6 in budgets else max(budgets), lambda_cost=0.02)
+            try:
+                null_result = evaluate_null_task(x=x, y=y, splits=splits, names=names, manifest=manifest,
+                    context=context, utility=utility, selection=selection, test=test,
+                    budget=6 if 6 in budgets else max(budgets), lambda_cost=0.02)
+            except Exception as exc:
+                blockers = [f"Null task failed: {type(exc).__name__}: {exc}"]
+                null_result = {"status": "blocked", "blockers": blockers}
             write_json(output_dir / "null_task.json", null_result)
         summary = {
-            "run_id": run_id, "status": "complete", "scope": scope,
+            "run_id": run_id, "status": "partial" if blockers else "complete", "scope": scope,
             "budgets": list(budgets), "lambda_grid": list(lambdas),
             "model_provenance": predictor.provenance,
             "split_counts": {name: len(splits[name]) for name in ("context", "utility", "selection", "test", "unused")},
@@ -360,16 +397,17 @@ def evaluate_frozen(
             "frozen_choices_sha256": frozen_hash,
             "selected_defaults": {key: choice["default_policy"] for key, choice in choices["choices"].items()},
             "results": result_summaries,
-            "null_task": None if null_result is None else {"status": null_result["status"], "metrics": null_result["metrics"]},
-            "files": {"frozen_choices": "frozen_choices.json", "per_case": "per_case.json", "aggregate": "aggregate.json", "value_scatter": "value_scatter.json", "null_task": "null_task.json" if include_null else None},
-            "blockers": [],
+            "null_task": None if null_result is None else {"status": null_result["status"], "metrics": null_result.get("metrics"), "blockers": null_result.get("blockers", [])},
+            "files": {"frozen_choices": "frozen_choices.json", "per_case": "per_case.json", "aggregate": "aggregate.json", "value_scatter": "value_scatter.json", "value_scatter_plot": "value_scatter.png", "null_task": "null_task.json" if include_null else None},
+            "blockers": blockers,
         }
         write_json(output_dir / "summary.json", summary)
         write_json(output_dir / "environment.json", environment_info())
         write_json(output_dir / "provenance.json", {"inputs": metadata["inputs"], "model": predictor.provenance,
             "utility_training": metadata["tuning"], "frozen_choices_sha256": frozen_hash})
-        write_json(status_path, {"status": "complete", "run_id": run_id, "scope": scope,
-            "frozen_choices_sha256": frozen_hash, "completed_at_utc": datetime.now(timezone.utc).isoformat()})
+        write_json(status_path, {"status": summary["status"], "run_id": run_id, "scope": scope,
+            "blockers": blockers, "frozen_choices_sha256": frozen_hash,
+            "completed_at_utc": datetime.now(timezone.utc).isoformat()})
         return summary
     except Exception as exc:
         write_json(status_path, {"status": "blocked", "run_id": run_id,
