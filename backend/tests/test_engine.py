@@ -123,3 +123,41 @@ def test_simple_policies_do_not_query_hypothetical_rows(policy):
     assert all(candidate["information"] is None and candidate["sampler"] is None for candidate in result["candidates"])
     assert result["selected_action"] in {"a", "b"} if policy == "random" else result["selected_action"] is None
     assert engine.analyze(state, 3, policy=policy, seed=19)["selected_action"] == result["selected_action"]
+
+
+def test_donor_draws_and_candidate_diagnostics_ignore_budget_and_cost_changes():
+    observed = ObservedCase(("initial",), {"sensor0_mean": 0.0})
+    engine = AcquisitionEngine(FixturePredictor(), CONTEXT, PANELS)
+    narrow = engine.analyze(observed, 1, seed=23)
+    wide = engine.analyze(observed, 3, seed=23)
+    overridden_panels = [dict(panel) for panel in PANELS]
+    overridden_panels[1]["cost"] = 0
+    overridden_panels[2]["cost"] = 9
+    override = AcquisitionEngine(FixturePredictor(), CONTEXT, overridden_panels).analyze(
+        observed, 1, seed=23
+    )
+    a_candidates = [
+        next(candidate for candidate in result["candidates"] if candidate["group_id"] == "a")
+        for result in (narrow, wide, override)
+    ]
+    assert len({candidate["sampler"]["seed"] for candidate in a_candidates}) == 1
+    for metric in ("raw_kl", "information", "residual", "entropy_drop"):
+        assert len({candidate[metric] for candidate in a_candidates}) == 1
+    assert len({result["state_hash"] for result in (narrow, wide, override)}) == 3
+
+
+def test_sampling_seed_changes_with_context_but_not_checkpoint_provenance():
+    observed = ObservedCase(("initial",), {"sensor0_mean": 0.0})
+    first_predictor = FixturePredictor()
+    first_predictor.provenance = {"checkpoint": "first"}
+    second_predictor = FixturePredictor()
+    second_predictor.provenance = {"checkpoint": "second"}
+    first = AcquisitionEngine(first_predictor, CONTEXT, PANELS).analyze(observed, 3, seed=23)
+    second = AcquisitionEngine(second_predictor, CONTEXT, PANELS).analyze(observed, 3, seed=23)
+    changed_context = CONTEXT.copy()
+    changed_context[1, 2] += 1
+    changed = AcquisitionEngine(FixturePredictor(), changed_context, PANELS).analyze(observed, 3, seed=23)
+    seed_for_a = lambda result: next(candidate for candidate in result["candidates"] if candidate["group_id"] == "a")["sampler"]["seed"]
+    assert seed_for_a(first) == seed_for_a(second)
+    assert first["state_hash"] != second["state_hash"]
+    assert seed_for_a(first) != seed_for_a(changed)

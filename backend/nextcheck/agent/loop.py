@@ -45,6 +45,11 @@ class AcquisitionEngine:
         self.sampler = DonorSampler(context_X, manifest)
         self.panels = self.sampler.panels
         self.utility_model = utility_model
+        context = np.ascontiguousarray(self.sampler.context_X.astype("<f8", copy=False))
+        context_digest = sha256()
+        context_digest.update(np.asarray(context.shape, dtype="<i8").tobytes())
+        context_digest.update(context.tobytes())
+        self.context_hash = context_digest.hexdigest()
 
     def _predict(self, rows: np.ndarray) -> np.ndarray:
         output = np.asarray(self.predictor.predict_proba(rows), dtype=np.float64)
@@ -68,16 +73,32 @@ class AcquisitionEngine:
             raise ValueError("seed must be a nonnegative integer")
         start = perf_counter()
         current_row = self.sampler.observed_row(observed)
-        state = {
+        visible_state = {
             "observed_groups": observed.observed_groups,
             "values": {key: observed.values[key] for key in sorted(observed.values)},
-            "remaining_budget": remaining_budget,
-            "panels": [
-                {"id": panel.id, "cost": panel.cost, "features": panel.features}
+            "context_hash": self.context_hash,
+            "feature_schema": [
+                {"id": panel.id, "features": panel.features, "columns": panel.columns}
                 for panel in self.panels
             ],
         }
-        state_hash = sha256(json.dumps(state, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
+        sampling_hash = sha256(
+            json.dumps(visible_state, sort_keys=True, separators=(",", ":")).encode()
+        ).hexdigest()
+        state = {
+            "sampling_hash": sampling_hash,
+            "remaining_budget": remaining_budget,
+            "costs": {panel.id: panel.cost for panel in self.panels},
+            "policy": policy,
+            "lambda_cost": lambda_cost,
+            "seed": seed,
+            "sampler_draws": 16,
+            "conditioning": "fixed_context_nan_v1",
+            "predictor_provenance": getattr(self.predictor, "provenance", None),
+        }
+        state_hash = sha256(
+            json.dumps(state, sort_keys=True, separators=(",", ":"), default=str).encode()
+        ).hexdigest()
         current = self._predict(current_row[None, :])[0]
         current_entropy = float(-np.sum(current * np.log(current)))
         margin = float(np.sort(current)[-1] - np.sort(current)[-2])
@@ -104,7 +125,7 @@ class AcquisitionEngine:
             candidates.append(candidate)
             if affordable and policy not in {"random", "initial"}:
                 candidate_seed = int.from_bytes(
-                    sha256(f"{seed}:{state_hash}:{panel.id}".encode()).digest()[:8], "big"
+                    sha256(f"{seed}:{sampling_hash}:{panel.id}".encode()).digest()[:8], "big"
                 )
                 rows, donor_diagnostics = self.sampler.sample(
                     observed, panel.id, candidate_seed, draws=16
@@ -150,7 +171,7 @@ class AcquisitionEngine:
 
         if policy == "random":
             # Random baselines use the same fixed state seed, without consulting hidden values.
-            rng_seed = int.from_bytes(sha256(f"{seed}:{state_hash}:random".encode()).digest()[:8], "big")
+            rng_seed = int.from_bytes(sha256(f"{seed}:{sampling_hash}:random".encode()).digest()[:8], "big")
             shuffled = np.random.default_rng(rng_seed).permutation(len(candidates))
             random_order = {int(index): position for position, index in enumerate(shuffled)}
             candidates.sort(key=lambda candidate: (not candidate["affordable"], random_order[self._remaining_order(candidate["group_id"], remaining)]))
