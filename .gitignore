@@ -1,0 +1,11 @@
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+node_modules/
+dist/
+artifacts/
+.env
+*.sqlite*
+*.safetensors
+*.egg-info/
