@@ -5,6 +5,7 @@ export type Health = {
   blockers: string[]
   mode: 'live'
   utility_ready: boolean
+  selected_default?: Record<string, unknown> | string | null
 }
 
 export type Panel = {
@@ -64,6 +65,7 @@ export type Session = {
   stop_reason: string | null
   inference_ms: number
   model_ref: string
+  selection_note?: string | null
 }
 
 export type Job = {

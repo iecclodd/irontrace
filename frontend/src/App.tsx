@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { AlertTriangle, Archive, Beaker, CheckCircle2, ChevronDown, DatabaseZap, FlaskConical, LoaderCircle, Radio, RefreshCw, ShieldCheck } from 'lucide-react'
-import { api, errorMessage } from './api'
+import { api, ApiError, errorMessage } from './api'
 import { StatusBadge } from './components/StatusBadge'
 import { BenchmarkPage } from './pages/BenchmarkPage'
 import { InspectionPage, type SessionConfig } from './pages/InspectionPage'
@@ -32,7 +32,7 @@ export default function App() {
   const [benchmarkError, setBenchmarkError] = useState<string | null>(null)
   const abortRef = useRef(false)
   const pollTokenRef = useRef(0)
-  const [config, setConfig] = useState<SessionConfig>({ budget: 6, lambdaCost: .02, policy: 'information', costs: {} })
+  const [config, setConfig] = useState<SessionConfig>({ budget: 6, lambdaCost: .02, policy: 'default', costs: {} })
   const replayMode = selectedReplay !== 'live'
 
   const loadBootstrap = useCallback(async () => {
@@ -48,15 +48,19 @@ export default function App() {
   }, [])
 
   useEffect(() => { void loadBootstrap() }, [loadBootstrap])
-  useEffect(() => () => { abortRef.current = true }, [])
+  useEffect(() => {
+    abortRef.current = false
+    return () => { abortRef.current = true }
+  }, [])
 
-  const refreshSession = useCallback(async (current: Session) => {
+  const refreshSession = useCallback(async (current: Session, shouldApply: () => boolean = () => true) => {
     const [nextSession, trace] = await Promise.all([api.sessions.get(current.id), api.sessions.trace(current.id)])
+    if (!shouldApply()) return nextSession
     setSession(nextSession)
     setEvents(trace.events)
     if (nextSession.status === 'completed') {
       const completedReport = await api.sessions.report(nextSession.id).catch(() => null)
-      setReport(completedReport)
+      if (shouldApply()) setReport(completedReport)
     }
     return nextSession
   }, [])
@@ -66,8 +70,9 @@ export default function App() {
     while (!abortRef.current && token === pollTokenRef.current) {
       const nextJob = await api.job(jobId)
       setJob(nextJob)
-      if (nextJob.status === 'completed') { await refreshSession(current); return }
+      if (nextJob.status === 'completed') { await refreshSession(current, () => token === pollTokenRef.current && !abortRef.current); return }
       if (nextJob.status === 'error') throw new Error(nextJob.error || 'The numerical job failed.')
+      current = await refreshSession(current, () => token === pollTokenRef.current && !abortRef.current)
       await new Promise((resolve) => window.setTimeout(resolve, 600))
     }
   }
@@ -102,8 +107,16 @@ export default function App() {
   })
 
   const stop = () => session && runAction(async () => {
+    let latest = await api.sessions.get(session.id)
+    let next: Session
+    try {
+      next = await api.sessions.stop(latest.id, latest.version)
+    } catch (caught) {
+      if (!(caught instanceof ApiError) || caught.status !== 409) throw caught
+      latest = await api.sessions.get(session.id)
+      next = await api.sessions.stop(latest.id, latest.version)
+    }
     pollTokenRef.current += 1
-    const next = await api.sessions.stop(session.id, session.version)
     setSession(next)
     const [trace, completedReport] = await Promise.all([api.sessions.trace(next.id), api.sessions.report(next.id).catch(() => null)])
     setEvents(trace.events); setReport(completedReport)
