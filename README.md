@@ -1,6 +1,6 @@
 # IRONTRACE
 
-IRONTRACE is a local hydraulic inspection replay console by azaan noman. It uses the official TabPFN 3.5 base checkpoint to predict internal pump leakage (no, weak, or severe) while simulating the cost of buying access to additional sensor panels. It does not operate machinery and it does not provide repair or safety decisions.
+IRONTRACE is a local hydraulic inspection replay console. It uses the official TabPFN 3.5 base checkpoint to predict internal pump leakage (no, weak, or severe) while simulating the cost of buying access to additional sensor panels. It does not operate machinery and it does not provide repair or safety decisions.
 
 The public product name is IRONTRACE. Internal Python modules and the compatibility environment variable `NEXTCHECK_ARTIFACTS` still use `nextcheck`/`NEXTCHECK` names.
 
